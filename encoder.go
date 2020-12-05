@@ -68,6 +68,8 @@ func (e *encoder) encode(v interface{}) {
 		e.encodeArray(v)
 	case map[string]interface{}:
 		e.encodeMap(v)
+	case JQValue:
+		e.encode(v.JQValueToGoJQ())
 	default:
 		panic(fmt.Sprintf("invalid type: %[1]T (%[1]v)", v))
 	}

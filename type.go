@@ -11,7 +11,7 @@ import (
 // types (nil, bool, int, float64, *big.Int, string, []interface{},
 // and map[string]interface{}).
 func TypeOf(v interface{}) string {
-	switch v.(type) {
+	switch v := v.(type) {
 	case nil:
 		return "null"
 	case bool:
@@ -24,6 +24,8 @@ func TypeOf(v interface{}) string {
 		return "array"
 	case map[string]interface{}:
 		return "object"
+	case JQValue:
+		return v.JQValueType()
 	default:
 		panic(fmt.Sprintf("invalid type: %[1]T (%[1]v)", v))
 	}
