@@ -198,6 +198,8 @@ func debugValue(v any) string {
 		return fmt.Sprintf("gojq.Iter(%#v)", v)
 	case []pathValue:
 		return fmt.Sprintf("[]gojq.pathValue(%v)", v)
+	case JQValue:
+		return fmt.Sprintf("gojq.JQValue(%s)", Preview(v))
 	case [2]int:
 		return fmt.Sprintf("[%d,%d]", v[0], v[1])
 	case [3]int:

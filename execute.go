@@ -61,6 +61,9 @@ loop:
 			m := make(map[string]any, n)
 			for i := 0; i < n; i++ {
 				v, k := env.pop(), env.pop()
+				if jv, ok := k.(JQValue); ok {
+					k = jv.JQValueToString()
+				}
 				s, ok := k.(string)
 				if !ok {
 					err = &objectKeyNotStringError{k}
@@ -147,7 +150,9 @@ loop:
 			pc = code.v.(int)
 			goto loop
 		case opjumpifnot:
-			if v := env.pop(); v == nil || v == false {
+			v := env.pop()
+			b, bOk := toBoolean(v)
+			if isNull(v) || (bOk && !b) {
 				pc = code.v.(int)
 				goto loop
 			}
@@ -157,6 +162,9 @@ loop:
 			}
 			p, v := code.v, env.pop()
 			if code.op == opindexarray && v != nil {
+				if jqv, ok := v.(JQValue); ok {
+					v = jqv.JQValueToGoJQ()
+				}
 				if _, ok := v.([]any); !ok {
 					err = &expectedArrayError{v}
 					break loop
@@ -320,6 +328,32 @@ loop:
 					continue
 				}
 				break loop
+			case JQValue:
+				if !env.paths.empty() && env.expdepth == 0 && !env.pathIntact(v) {
+					err = &invalidPathIterError{v}
+					break loop
+				}
+				xsv := v.JQValueEach()
+				if e, ok := xsv.(error); ok {
+					err = e
+					break loop
+				}
+				switch xsv := xsv.(type) {
+				case []PathValue:
+					// convert from external PathValue to internal pathValue to make it easier to follow upstream
+					xs = make([]pathValue, len(xsv))
+					if len(xsv) == 0 {
+						break loop
+					}
+					for i, pv := range xsv {
+						xs[i] = pathValue{path: pv.Path, value: pv.Value}
+					}
+				case nil:
+					break loop
+				default:
+					err = &iteratorError{xsv}
+					break loop
+				}
 			default:
 				err = &iteratorError{v}
 				env.push(emptyIter{})
@@ -431,6 +465,9 @@ func (env *env) pathIntact(v any) bool {
 		if w, ok := w.(float64); ok {
 			return v == w || math.IsNaN(v) && math.IsNaN(w)
 		}
+	case JQValue:
+		// TODO: JQValue: should understand this better
+		return true
 	}
 	return v == w
 }
