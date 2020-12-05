@@ -325,7 +325,10 @@ func typeof(v interface{}) (s string) {
 		if _, ok := v.(*big.Int); ok {
 			return "number"
 		}
-		return "ptr"
+		if jo, ok := v.(JSONObject); ok {
+			return jo.JsonType()
+		}
+		return t.String()
 	default:
 		return k.String()
 	}

@@ -48,19 +48,19 @@ func init() {
 		"builtins":       argFunc0(nil),
 		"input":          argFunc0(nil),
 		"modulemeta":     argFunc0(nil),
-		"length":         argFunc0(funcLength),
+		"length":         argFunc0S(funcLength),
 		"utf8bytelength": argFunc0(funcUtf8ByteLength),
-		"keys":           argFunc0(funcKeys),
-		"has":            argFunc1(funcHas),
+		"keys":           argFunc0S(funcKeys),
+		"has":            argFunc1S(funcHas),
 		"add":            argFunc0(funcAdd),
 		"tonumber":       argFunc0(funcToNumber),
 		"tostring":       argFunc0(funcToString),
 		"type":           argFunc0(funcType),
-		"reverse":        argFunc0(funcReverse),
+		"reverse":        argFunc0S(funcReverse),
 		"contains":       argFunc1(funcContains),
 		"explode":        argFunc0(funcExplode),
 		"implode":        argFunc0(funcImplode),
-		"split":          {argcount1 | argcount2, funcSplit},
+		"split":          argFuncN(argcount1|argcount2, funcSplit),
 		"tojson":         argFunc0(funcToJSON),
 		"fromjson":       argFunc0(funcFromJSON),
 		"format":         argFunc1(funcFormat),
@@ -71,8 +71,8 @@ func init() {
 		"_tosh":          argFunc0(funcToSh),
 		"_tobase64":      argFunc0(funcToBase64),
 		"_tobase64d":     argFunc0(funcToBase64d),
-		"_index":         argFunc2(funcIndex),
-		"_slice":         argFunc3(funcSlice),
+		"_index":         argFunc2S(funcIndex),
+		"_slice":         argFunc3S(funcSlice),
 		"_break":         argFunc0(funcBreak),
 		"_plus":          argFunc0(funcOpPlus),
 		"_negate":        argFunc0(funcOpNegate),
@@ -162,7 +162,7 @@ func init() {
 		"isnormal":       argFunc0(funcIsnormal),
 		"setpath":        argFunc2(funcSetpath),
 		"delpaths":       argFunc1(funcDelpaths),
-		"getpath":        argFunc1(funcGetpath),
+		"getpath":        argFunc1S(funcGetpath),
 		"bsearch":        argFunc1(funcBsearch),
 		"gmtime":         argFunc0(funcGmtime),
 		"localtime":      argFunc0(funcLocaltime),
@@ -172,17 +172,24 @@ func init() {
 		"strptime":       argFunc1(funcStrptime),
 		"now":            argFunc0(funcNow),
 		"_match":         argFunc3(funcMatch),
-		"error":          {argcount0 | argcount1, funcError},
+		"error":          argFuncN(argcount0|argcount1, funcError),
 		"halt":           argFunc0(funcHalt),
-		"halt_error":     {argcount0 | argcount1, funcHaltError},
+		"halt_error":     argFuncN(argcount0|argcount1, funcHaltError),
 		"_type_error":    argFunc1(internalfuncTypeError),
 	}
+}
+
+func toPrimitive(v interface{}) interface{} {
+	if jo, ok := v.(JSONObject); ok {
+		return jo.JsonPrimitiveValue()
+	}
+	return v
 }
 
 func argFunc0(fn func(interface{}) interface{}) function {
 	return function{
 		argcount0, func(v interface{}, _ []interface{}) interface{} {
-			return fn(v)
+			return fn(toPrimitive(v))
 		},
 	}
 }
@@ -190,7 +197,7 @@ func argFunc0(fn func(interface{}) interface{}) function {
 func argFunc1(fn func(interface{}, interface{}) interface{}) function {
 	return function{
 		argcount1, func(v interface{}, args []interface{}) interface{} {
-			return fn(v, args[0])
+			return fn(toPrimitive(v), toPrimitive(args[0]))
 		},
 	}
 }
@@ -198,7 +205,7 @@ func argFunc1(fn func(interface{}, interface{}) interface{}) function {
 func argFunc2(fn func(interface{}, interface{}, interface{}) interface{}) function {
 	return function{
 		argcount2, func(v interface{}, args []interface{}) interface{} {
-			return fn(v, args[0], args[1])
+			return fn(toPrimitive(v), toPrimitive(args[0]), toPrimitive(args[1]))
 		},
 	}
 }
@@ -206,7 +213,59 @@ func argFunc2(fn func(interface{}, interface{}, interface{}) interface{}) functi
 func argFunc3(fn func(interface{}, interface{}, interface{}, interface{}) interface{}) function {
 	return function{
 		argcount3, func(v interface{}, args []interface{}) interface{} {
+			return fn(toPrimitive(v), toPrimitive(args[0]), args[1], args[2])
+		},
+	}
+}
+
+func argFuncN(argcount int, fn func(v interface{}, args []interface{}) interface{}) function {
+	return function{
+		argcount, func(v interface{}, args []interface{}) interface{} {
+			// TODO: ok to modify args?
+			for i := range args {
+				args[i] = toPrimitive(args[i])
+			}
+			return fn(toPrimitive(v), args)
+		},
+	}
+}
+
+func argFunc0S(fn func(interface{}) interface{}) function {
+	return function{
+		argcount0, func(v interface{}, _ []interface{}) interface{} {
+			return fn(v)
+		},
+	}
+}
+
+func argFunc1S(fn func(interface{}, interface{}) interface{}) function {
+	return function{
+		argcount1, func(v interface{}, args []interface{}) interface{} {
+			return fn(v, args[0])
+		},
+	}
+}
+
+func argFunc2S(fn func(interface{}, interface{}, interface{}) interface{}) function {
+	return function{
+		argcount2, func(v interface{}, args []interface{}) interface{} {
+			return fn(v, args[0], args[1])
+		},
+	}
+}
+
+func argFunc3S(fn func(interface{}, interface{}, interface{}, interface{}) interface{}) function {
+	return function{
+		argcount3, func(v interface{}, args []interface{}) interface{} {
 			return fn(v, args[0], args[1], args[2])
+		},
+	}
+}
+
+func argFuncNS(argcount int, fn func(v interface{}, args []interface{}) interface{}) function {
+	return function{
+		argcount, func(v interface{}, args []interface{}) interface{} {
+			return fn(v, args)
 		},
 	}
 }
@@ -272,6 +331,8 @@ func funcLength(v interface{}) interface{} {
 		return new(big.Int).Abs(v)
 	case nil:
 		return 0
+	case JSONObject:
+		return v.JsonLength()
 	default:
 		return &funcTypeError{"length", v}
 	}
@@ -307,6 +368,17 @@ func funcKeys(v interface{}) interface{} {
 			u[i] = x
 		}
 		return u
+	case JSONObject:
+		propsv := v.JsonEach()
+		props, ok := propsv.([][2]interface{})
+		if !ok {
+			return propsv
+		}
+		w := make([]interface{}, len(props))
+		for i, p := range props {
+			w[i] = p[0]
+		}
+		return w
 	default:
 		return &funcTypeError{"keys", v}
 	}
@@ -324,6 +396,13 @@ func funcHas(v, x interface{}) interface{} {
 		case string:
 			_, ok := v[x]
 			return ok
+		default:
+			return &hasKeyTypeError{v, x}
+		}
+	case JSONObject:
+		switch x := x.(type) {
+		case string:
+			return v.JsonProperty(x) != nil
 		default:
 			return &hasKeyTypeError{v, x}
 		}
@@ -415,15 +494,31 @@ func funcType(v interface{}) interface{} {
 }
 
 func funcReverse(v interface{}) interface{} {
-	vs, ok := v.([]interface{})
-	if !ok {
+	switch vs := v.(type) {
+	case []interface{}:
+		ws := make([]interface{}, len(vs))
+		for i, v := range vs {
+			ws[len(ws)-i-1] = v
+		}
+		return ws
+	case JSONObject:
+		lv := vs.JsonLength()
+		l, ok := lv.(int)
+		if !ok {
+			return lv
+		}
+		ws := make([]interface{}, l)
+		vsa := vs.JsonRange(0, len(ws))
+		if vas, ok := vsa.([]interface{}); ok {
+			for i, v := range vas {
+				ws[len(ws)-i-1] = v
+			}
+			return ws
+		}
+		return vsa
+	default:
 		return &expectedArrayError{v}
 	}
-	ws := make([]interface{}, len(vs))
-	for i, v := range vs {
-		ws[len(ws)-i-1] = v
-	}
-	return ws
 }
 
 func funcContains(v, x interface{}) interface{} {
@@ -710,6 +805,22 @@ func funcToBase64d(v interface{}) interface{} {
 	}
 }
 
+type JSONObject interface {
+	// returns int
+	JsonLength() interface{}
+	// returns interface{}
+	JsonIndex(index int) interface{}
+	// returns []interface{}
+	JsonRange(start int, end int) interface{}
+	// returns interface{}
+	JsonProperty(name string) interface{}
+	// returns [][2]interface{} [index,value] for array or [key,value] for object
+	JsonEach() interface{}
+	JsonType() string
+
+	JsonPrimitiveValue() interface{}
+}
+
 func funcIndex(_, v, x interface{}) interface{} {
 	switch x := x.(type) {
 	case string:
@@ -718,6 +829,8 @@ func funcIndex(_, v, x interface{}) interface{} {
 			return nil
 		case map[string]interface{}:
 			return v[x]
+		case JSONObject:
+			return v.JsonProperty(x)
 		default:
 			return &expectedObjectError{v}
 		}
@@ -726,7 +839,8 @@ func funcIndex(_, v, x interface{}) interface{} {
 		switch v := v.(type) {
 		case nil:
 			return nil
-		case []interface{}:
+		case []interface{},
+			JSONObject:
 			return funcIndexSlice(nil, nil, &idx, v)
 		case string:
 			switch v := funcIndexSlice(nil, nil, &idx, explode(v)).(type) {
@@ -804,7 +918,7 @@ func funcSlice(_, v, end, start interface{}) (r interface{}) {
 	switch v := v.(type) {
 	case nil:
 		return nil
-	case []interface{}:
+	case []interface{}, JSONObject:
 		if start != nil {
 			if start, ok := toInt(start); ok {
 				if end != nil {
@@ -829,38 +943,65 @@ func funcSlice(_, v, end, start interface{}) (r interface{}) {
 	}
 }
 
-func funcIndexSlice(start, end, index *int, a []interface{}) interface{} {
-	aa := a
+func funcIndexSlice(start, end, index *int, v interface{}) interface{} {
+	var l int
+	switch v := v.(type) {
+	case []interface{}:
+		l = len(v)
+	case JSONObject:
+		var ok bool
+		lv := v.JsonLength()
+		l, ok = lv.(int)
+		if !ok {
+			return lv
+		}
+	}
+
 	if index != nil {
-		i := toIndex(aa, *index)
+		i := toIndex(l, *index)
 		if i < 0 {
 			return nil
 		}
-		return a[i]
-	}
-	if end != nil {
-		i := toIndex(aa, *end)
-		if i == -1 {
-			i = len(a)
-		} else if i == -2 {
-			i = 0
+
+		switch v := v.(type) {
+		case []interface{}:
+			return v[i]
+		case JSONObject:
+			return v.JsonIndex(i)
 		}
-		a = a[:i]
+	}
+
+	endIdx := l
+	var startIdx int
+
+	if end != nil {
+		endIdx = toIndex(l, *end)
+		if endIdx == -1 {
+			endIdx = l
+		} else if endIdx == -2 {
+			endIdx = 0
+		}
 	}
 	if start != nil {
-		i := toIndex(aa, *start)
-		if i == -1 || len(a) < i {
-			i = len(a)
-		} else if i == -2 {
-			i = 0
+		startIdx = toIndex(l, *start)
+		if startIdx == -1 || startIdx > endIdx {
+			startIdx = endIdx
+		} else if startIdx == -2 {
+			startIdx = 0
 		}
-		a = a[i:]
 	}
-	return a
+
+	switch v := v.(type) {
+	case []interface{}:
+		return v[startIdx:endIdx]
+	case JSONObject:
+		return v.JsonRange(startIdx, endIdx)
+	default:
+		panic("unreachable")
+	}
 }
 
-func toIndex(a []interface{}, i int) int {
-	l := len(a)
+func toIndex(l int, i int) int {
 	switch {
 	case i < -l:
 		return -2
@@ -1222,7 +1363,7 @@ func updatePaths(v interface{}, path []interface{}, w interface{}, delpaths bool
 		case []interface{}:
 			var start, end int
 			if x, ok := toInt(x["start"]); ok {
-				x := toIndex(uu, x)
+				x := toIndex(len(uu), x)
 				if x > len(uu) || x == -1 {
 					start = len(uu)
 				} else if x == -2 {
@@ -1232,7 +1373,7 @@ func updatePaths(v interface{}, path []interface{}, w interface{}, delpaths bool
 				}
 			}
 			if x, ok := toInt(x["end"]); ok {
-				x := toIndex(uu, x)
+				x := toIndex(len(uu), x)
 				if x == -1 {
 					end = len(uu)
 				} else if x < start {
@@ -1310,6 +1451,7 @@ func funcGetpath(v, p interface{}) interface{} {
 		case map[string]interface{}:
 		case []interface{}:
 		case nil:
+		case JSONObject:
 		default:
 			return &getpathError{u, p}
 		}
@@ -1602,6 +1744,8 @@ func toInt(x interface{}) (int, bool) {
 			return maxInt, true
 		}
 		return minInt, true
+	case JSONObject:
+		return toInt(x.JsonPrimitiveValue())
 	default:
 		return 0, false
 	}
@@ -1625,6 +1769,8 @@ func toFloat(x interface{}) (float64, bool) {
 		return x, true
 	case *big.Int:
 		return bigToFloat(x), true
+	case JSONObject:
+		return toFloat(x.JsonPrimitiveValue())
 	default:
 		return 0.0, false
 	}
