@@ -7,6 +7,7 @@ import (
 
 func deepEqual(l, r interface{}) bool {
 	return binopTypeSwitch(l, r,
+		binopIsHalfInt,
 		func(l, r int) interface{} {
 			return l == r
 		},
