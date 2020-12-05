@@ -331,13 +331,15 @@ func funcLength(v any) any {
 		return len(v)
 	case map[string]any:
 		return len(v)
+	case JQValue:
+		return v.JQValueLength()
 	default:
 		return &func0TypeError{"length", v}
 	}
 }
 
 func funcUtf8ByteLength(v any) any {
-	s, ok := v.(string)
+	s, ok := toString(v)
 	if !ok {
 		return &func0TypeError{"utf8bytelength", v}
 	}
@@ -358,6 +360,8 @@ func funcKeys(v any) any {
 			w[i] = k
 		}
 		return w
+	case JQValue:
+		return v.JQValueKeys()
 	default:
 		return &func0TypeError{"keys", v}
 	}
@@ -384,6 +388,8 @@ func values(v any) ([]any, bool) {
 			vs[i] = v[k]
 		}
 		return vs, true
+	case JQValue:
+		return values(v.JQValueToGoJQ())
 	default:
 		return nil, false
 	}
@@ -402,6 +408,8 @@ func funcHas(v, x any) any {
 		}
 	case nil:
 		return false
+	case JQValue:
+		return v.JQValueHas(x)
 	}
 	return &func1TypeError{"has", v, x}
 }
@@ -420,12 +428,48 @@ func funcToEntries(v any) any {
 			w[i] = map[string]any{"key": k, "value": v[k]}
 		}
 		return w
+	case JQValue:
+		// to_entries/0 used to be implemented in jq but was made internal for
+		// performance. To preserve the JQValue keys order we have to implement
+		// it ourself, otherwise keys will be sorted.
+		if v.JQValueType() == JQTypeObject {
+			lv := v.JQValueLength()
+			if err, ok := lv.(error); ok {
+				return err
+			}
+			l, ok := toInt(lv)
+			if !ok {
+				return fmt.Errorf("invalid int length: %v", lv)
+			}
+			ev := v.JQValueEach()
+			e, ok := ev.([]PathValue)
+			if !ok {
+				return &func0TypeError{"to_entries", v}
+			}
+
+			w := make([]any, l)
+			for i, pv := range e {
+				k, ok := pv.Path.(string)
+				if !ok {
+					return &func0TypeError{"to_entries", v}
+				}
+
+				w[i] = map[string]any{"key": k, "value": pv.Value}
+			}
+
+			return w
+		}
+		return funcToEntries(v.JQValueToGoJQ())
 	default:
 		return &func0TypeError{"to_entries", v}
 	}
 }
 
 func funcFromEntries(v any) any {
+	if jqv, ok := v.(JQValue); ok {
+		v = jqv.JQValueToGoJQ()
+	}
+
 	vs, ok := v.([]any)
 	if !ok {
 		return &func0TypeError{"from_entries", v}
@@ -441,6 +485,13 @@ func funcFromEntries(v any) any {
 			)
 			for _, k := range [4]string{"key", "Key", "name", "Name"} {
 				if k := v[k]; k != nil && k != false {
+					if jqvk, ok := k.(JQValue); ok {
+						k = jqvk.JQValueToGoJQ()
+						if k == false {
+							continue
+						}
+					}
+
 					if key, ok = k.(string); !ok {
 						return &func0WrapError{"from_entries", vs, &objectKeyNotStringError{k}}
 					}
@@ -465,6 +516,7 @@ func funcFromEntries(v any) any {
 
 func funcAdd(v any) any {
 	vs, ok := values(v)
+
 	if !ok {
 		return &func0TypeError{"add", v}
 	}
@@ -534,6 +586,8 @@ func funcToNumber(v any) any {
 			return &func0WrapError{"tonumber", v, errors.New("invalid number")}
 		}
 		return toNumber(v)
+	case JQValue:
+		return v.JQValueToNumber()
 	default:
 		return &func0TypeError{"tonumber", v}
 	}
@@ -544,7 +598,7 @@ func toNumber(v string) any {
 }
 
 func funcToString(v any) any {
-	if s, ok := v.(string); ok {
+	if s, ok := toString(v); ok {
 		return s
 	}
 	return funcToJSON(v)
@@ -555,10 +609,11 @@ func funcType(v any) any {
 }
 
 func funcReverse(v any) any {
-	vs, ok := v.([]any)
+	vs, ok := toArray(v)
 	if !ok {
 		return &func0TypeError{"reverse", v}
 	}
+
 	ws := make([]any, len(vs))
 	for i, v := range vs {
 		ws[len(ws)-i-1] = v
@@ -661,21 +716,23 @@ func indexFunc(name string, v, x any, f func(_, _ []any) any) any {
 			return f(v, []any{x})
 		}
 	case string:
-		if x, ok := x.(string); ok {
+		if x, ok := toString(x); ok {
 			return f(explode(v), explode(x))
 		}
-		return &func1TypeError{name, v, x}
+		return func1TypeError{name, v, x}
+	case JQValue:
+		return indexFunc(name, v.JQValueToGoJQ(), x, f)
 	default:
 		return &func1TypeError{name, v, x}
 	}
 }
 
 func funcStartsWith(v, x any) any {
-	s, ok := v.(string)
+	s, ok := toString(v)
 	if !ok {
 		return &func1TypeError{"startswith", v, x}
 	}
-	t, ok := x.(string)
+	t, ok := toString(x)
 	if !ok {
 		return &func1TypeError{"startswith", v, x}
 	}
@@ -683,11 +740,11 @@ func funcStartsWith(v, x any) any {
 }
 
 func funcEndsWith(v, x any) any {
-	s, ok := v.(string)
+	s, ok := toString(v)
 	if !ok {
 		return &func1TypeError{"endswith", v, x}
 	}
-	t, ok := x.(string)
+	t, ok := toString(x)
 	if !ok {
 		return &func1TypeError{"endswith", v, x}
 	}
@@ -695,11 +752,11 @@ func funcEndsWith(v, x any) any {
 }
 
 func funcLtrimstr(v, x any) any {
-	s, ok := v.(string)
+	s, ok := toString(v)
 	if !ok {
 		return &func1TypeError{"ltrimstr", v, x}
 	}
-	t, ok := x.(string)
+	t, ok := toString(x)
 	if !ok {
 		return &func1TypeError{"ltrimstr", v, x}
 	}
@@ -707,11 +764,11 @@ func funcLtrimstr(v, x any) any {
 }
 
 func funcRtrimstr(v, x any) any {
-	s, ok := v.(string)
+	s, ok := toString(v)
 	if !ok {
 		return &func1TypeError{"rtrimstr", v, x}
 	}
-	t, ok := x.(string)
+	t, ok := toString(x)
 	if !ok {
 		return &func1TypeError{"rtrimstr", v, x}
 	}
@@ -743,11 +800,11 @@ func funcTrim(v any) any {
 }
 
 func funcExplode(v any) any {
-	s, ok := v.(string)
+	x, ok := toString(v)
 	if !ok {
 		return &func0TypeError{"explode", v}
 	}
-	return explode(s)
+	return explode(x)
 }
 
 func explode(s string) []any {
@@ -761,7 +818,7 @@ func explode(s string) []any {
 }
 
 func funcImplode(v any) any {
-	vs, ok := v.([]any)
+	vs, ok := toArray(v)
 	if !ok {
 		return &func0TypeError{"implode", v}
 	}
@@ -782,11 +839,11 @@ func funcImplode(v any) any {
 }
 
 func funcSplit(v any, args []any) any {
-	s, ok := v.(string)
+	s, ok := toString(v)
 	if !ok {
 		return &func0TypeError{"split", v}
 	}
-	x, ok := args[0].(string)
+	x, ok := toString(args[0])
 	if !ok {
 		return &func0TypeError{"split", x}
 	}
@@ -796,7 +853,7 @@ func funcSplit(v any, args []any) any {
 	} else {
 		var flags string
 		if args[1] != nil {
-			v, ok := args[1].(string)
+			v, ok := toString(args[1])
 			if !ok {
 				return &func0TypeError{"split", args[1]}
 			}
@@ -846,7 +903,7 @@ func funcToJSON(v any) any {
 }
 
 func funcFromJSON(v any) any {
-	s, ok := v.(string)
+	s, ok := toString(v)
 	if !ok {
 		return &func0TypeError{"fromjson", v}
 	}
@@ -863,14 +920,14 @@ func funcFromJSON(v any) any {
 }
 
 func funcFormat(v, x any) any {
-	s, ok := x.(string)
+	sx, ok := toString(x)
 	if !ok {
 		return &func0TypeError{"format", x}
 	}
-	format := "@" + s
-	f := formatToFunc(format)
+	fmt := "@" + sx
+	f := formatToFunc(fmt)
 	if f == nil {
-		return &formatNotFoundError{format}
+		return &formatNotFoundError{fmt}
 	}
 	return internalFuncs[f.Name].callback(v, nil)
 }
@@ -943,7 +1000,7 @@ var shEscaper = strings.NewReplacer(
 )
 
 func funcToSh(v any) any {
-	if _, ok := v.([]any); !ok {
+	if _, ok := toArray(v); !ok {
 		v = []any{v}
 	}
 	return formatJoin("sh", v, " ", func(s string) string {
@@ -952,12 +1009,16 @@ func funcToSh(v any) any {
 }
 
 func formatJoin(typ string, v any, sep string, escape func(string) string) any {
-	vs, ok := v.([]any)
+	vs, ok := toArray(v)
 	if !ok {
 		return &func0TypeError{"@" + typ, v}
 	}
 	ss := make([]string, len(vs))
 	for i, v := range vs {
+		if jqv, ok := v.(JQValue); ok {
+			v = jqv.JQValueToGoJQ()
+		}
+
 		switch v := v.(type) {
 		case []any, map[string]any:
 			return &formatRowError{typ, v}
@@ -998,6 +1059,7 @@ func funcToBase64d(v any) any {
 }
 
 func funcIndex2(_, v, x any) any {
+
 	switch x := x.(type) {
 	case string:
 		switch v := v.(type) {
@@ -1005,6 +1067,8 @@ func funcIndex2(_, v, x any) any {
 			return nil
 		case map[string]any:
 			return v[x]
+		case JQValue:
+			return v.JQValueKey(x)
 		default:
 			return &expectedObjectError{v}
 		}
@@ -1017,6 +1081,22 @@ func funcIndex2(_, v, x any) any {
 			return index(v, i)
 		case string:
 			return indexString(v, i)
+		case JQValue:
+			lv := v.JQValueSliceLen()
+			l, ok := lv.(int)
+			if !ok {
+				return lv
+			}
+			i := clampIndex(i, -1, l)
+
+			// TODO: JQValue -2 outside < 0, -1 outside > len
+			// TODO: redo this, nice to know actual index?
+			if i < 0 {
+				i = -2
+			} else if i >= l {
+				i = -1
+			}
+			return v.JQValueIndex(i)
 		default:
 			return &expectedArrayError{v}
 		}
@@ -1042,6 +1122,8 @@ func funcIndex2(_, v, x any) any {
 			return &expectedStartEndError{x}
 		}
 		return funcSlice(nil, v, end, start)
+	case JQValue:
+		return funcIndex2(nil, v, x.JQValueToGoJQ())
 	default:
 		switch v.(type) {
 		case []any:
@@ -1083,6 +1165,8 @@ func funcSlice(_, v, e, s any) (r any) {
 		return slice(v, e, s)
 	case string:
 		return sliceString(v, e, s)
+	case JQValue:
+		return sliceJQValue(v, e, s)
 	default:
 		return &expectedArrayError{v}
 	}
@@ -1151,6 +1235,33 @@ func sliceString(v string, e, s any) any {
 	return v[start:end]
 }
 
+func sliceJQValue(v JQValue, e, s any) any {
+	lv := v.JQValueSliceLen()
+	l, ok := lv.(int)
+	if !ok {
+		return lv
+	}
+
+	var start, end int
+	if s != nil {
+		if i, ok := toInt(s); ok {
+			start = clampIndex(i, 0, l)
+		} else {
+			return &arrayIndexNotNumberError{s}
+		}
+	}
+	if e != nil {
+		if i, ok := toInt(e); ok {
+			end = clampIndex(i, start, l)
+		} else {
+			return &arrayIndexNotNumberError{e}
+		}
+	} else {
+		end = l
+	}
+	return v.JQValueSlice(start, end)
+}
+
 func clampIndex(i, min, max int) int {
 	if i < 0 {
 		i += max
@@ -1186,7 +1297,7 @@ func funcFlatten(v any, args []any) any {
 
 func flatten(xs, vs []any, depth float64) []any {
 	for _, v := range vs {
-		if vs, ok := v.([]any); ok && depth != 0 {
+		if vs, ok := toArray(v); ok && depth != 0 {
 			xs = flatten(xs, vs, depth-1)
 		} else {
 			xs = append(xs, v)
@@ -1209,7 +1320,12 @@ func (iter *rangeIter) Next() (any, bool) {
 }
 
 func funcRange(_ any, xs []any) any {
-	for _, x := range xs {
+	for i, x := range xs {
+		if jqv, ok := x.(JQValue); ok {
+			x = jqv.JQValueToGoJQ()
+			xs[i] = x
+		}
+
 		switch x.(type) {
 		case int, float64, *big.Int:
 		default:
@@ -1220,7 +1336,7 @@ func funcRange(_ any, xs []any) any {
 }
 
 func funcMin(v any) any {
-	vs, ok := v.([]any)
+	vs, ok := toArray(v)
 	if !ok {
 		return &func0TypeError{"min", v}
 	}
@@ -1228,11 +1344,11 @@ func funcMin(v any) any {
 }
 
 func funcMinBy(v, x any) any {
-	vs, ok := v.([]any)
+	vs, ok := toArray(v)
 	if !ok {
 		return &func1TypeError{"min_by", v, x}
 	}
-	xs, ok := x.([]any)
+	xs, ok := toArray(x)
 	if !ok {
 		return &func1TypeError{"min_by", v, x}
 	}
@@ -1243,7 +1359,7 @@ func funcMinBy(v, x any) any {
 }
 
 func funcMax(v any) any {
-	vs, ok := v.([]any)
+	vs, ok := toArray(v)
 	if !ok {
 		return &func0TypeError{"max", v}
 	}
@@ -1251,11 +1367,11 @@ func funcMax(v any) any {
 }
 
 func funcMaxBy(v, x any) any {
-	vs, ok := v.([]any)
+	vs, ok := toArray(v)
 	if !ok {
 		return &func1TypeError{"max_by", v, x}
 	}
-	xs, ok := x.([]any)
+	xs, ok := toArray(x)
 	if !ok {
 		return &func1TypeError{"max_by", v, x}
 	}
@@ -1282,18 +1398,23 @@ type sortItem struct {
 	value, key any
 }
 
-func sortItems(name string, v, x any) ([]*sortItem, error) {
-	vs, ok := v.([]any)
+func sortItems(name string, v, x any) ([]*sortItem, any) {
+	var ok bool
+	var vs []any
+
+	vs, ok = toArray(v)
 	if !ok {
 		if strings.HasSuffix(name, "_by") {
 			return nil, &func1TypeError{name, v, x}
 		}
 		return nil, &func0TypeError{name, v}
 	}
-	xs, ok := x.([]any)
+
+	xs, ok := toArray(x)
 	if !ok {
 		return nil, &func1TypeError{name, v, x}
 	}
+
 	if len(vs) != len(xs) {
 		return nil, &func1WrapError{name, v, x, &lengthMismatchError{}}
 	}
@@ -1375,12 +1496,16 @@ func funcJoin(v, x any) any {
 	if len(vs) == 0 {
 		return ""
 	}
-	sep, ok := x.(string)
+	sep, ok := toString(x)
 	if len(vs) > 1 && !ok {
 		return &func1TypeError{"join", v, x}
 	}
 	ss := make([]string, len(vs))
 	for i, v := range vs {
+		if jqv, ok := v.(JQValue); ok {
+			v = jqv.JQValueToGoJQ()
+		}
+
 		switch v := v.(type) {
 		case nil:
 		case string:
@@ -1536,7 +1661,7 @@ func funcSetpathWithAllocator(v any, args []any) any {
 }
 
 func setpath(v, p, n any, a allocator) any {
-	path, ok := p.([]any)
+	path, ok := toArray(p)
 	if !ok {
 		return &func1TypeError{"setpath", v, p}
 	}
@@ -1557,7 +1682,7 @@ func funcDelpathsWithAllocator(v any, args []any) any {
 }
 
 func delpaths(v, p any, a allocator) any {
-	paths, ok := p.([]any)
+	paths, ok := toArray(p)
 	if !ok {
 		return &func1TypeError{"delpaths", v, p}
 	}
@@ -1571,7 +1696,7 @@ func delpaths(v, p any, a allocator) any {
 	var err error
 	u := v
 	for _, q := range paths {
-		path, ok := q.([]any)
+		path, ok := toArray(q)
 		if !ok {
 			return &func1WrapError{"delpaths", v, p, &expectedArrayError{q}}
 		}
@@ -1587,7 +1712,23 @@ func update(v any, path []any, n any, a allocator) (any, error) {
 	if len(path) == 0 {
 		return n, nil
 	}
-	switch p := path[0].(type) {
+
+	if jqv, ok := v.(JQValue); ok {
+		v = jqv.JQValueToGoJQ()
+		if err, ok := v.(error); ok {
+			return nil, err
+		}
+	}
+
+	p0 := path[0]
+	if jqv, ok := p0.(JQValue); ok {
+		p0 = jqv.JQValueToGoJQ()
+		if err, ok := v.(error); ok {
+			return nil, err
+		}
+	}
+
+	switch p := p0.(type) {
 	case string:
 		switch v := v.(type) {
 		case nil:
@@ -1780,14 +1921,14 @@ func deleteEmpty(v any) any {
 }
 
 func funcGetpath(v, p any) any {
-	path, ok := p.([]any)
+	path, ok := toArray(p)
 	if !ok {
 		return &func1TypeError{"getpath", v, p}
 	}
 	u := v
 	for _, x := range path {
 		switch v.(type) {
-		case nil, []any, map[string]any:
+		case nil, []any, map[string]any, JQValue:
 			v = funcIndex2(nil, v, x)
 			if err, ok := v.(error); ok {
 				return &func1WrapError{"getpath", u, p, err}
@@ -1800,7 +1941,7 @@ func funcGetpath(v, p any) any {
 }
 
 func funcTranspose(v any) any {
-	vss, ok := v.([]any)
+	vss, ok := toArray(v)
 	if !ok {
 		return &func0TypeError{"transpose", v}
 	}
@@ -1809,7 +1950,7 @@ func funcTranspose(v any) any {
 	}
 	var l int
 	for _, vs := range vss {
-		vs, ok := vs.([]any)
+		vs, ok := toArray(vs)
 		if !ok {
 			return &func0TypeError{"transpose", v}
 		}
@@ -1825,7 +1966,8 @@ func funcTranspose(v any) any {
 		xs[i] = s
 	}
 	for i, vs := range vss {
-		for j, v := range vs.([]any) {
+		vs, _ := toArray(vs)
+		for j, v := range vs {
 			wss[j][i] = v
 		}
 	}
@@ -1833,7 +1975,7 @@ func funcTranspose(v any) any {
 }
 
 func funcBsearch(v, t any) any {
-	vs, ok := v.([]any)
+	vs, ok := toArray(v)
 	if !ok {
 		return &func1TypeError{"bsearch", v, t}
 	}
@@ -1875,7 +2017,7 @@ func epochToArray(v float64, loc *time.Location) []any {
 }
 
 func funcMktime(v any) any {
-	a, ok := v.([]any)
+	a, ok := toArray(v)
 	if !ok {
 		return &func0TypeError{"mktime", v}
 	}
@@ -1894,11 +2036,11 @@ func funcStrftime(v, x any) any {
 	if w, ok := toFloat(v); ok {
 		v = epochToArray(w, time.UTC)
 	}
-	a, ok := v.([]any)
+	a, ok := toArray(v)
 	if !ok {
 		return &func1TypeError{"strftime", v, x}
 	}
-	format, ok := x.(string)
+	format, ok := toString(x)
 	if !ok {
 		return &func1TypeError{"strftime", v, x}
 	}
@@ -1913,11 +2055,11 @@ func funcStrflocaltime(v, x any) any {
 	if w, ok := toFloat(v); ok {
 		v = epochToArray(w, time.Local)
 	}
-	a, ok := v.([]any)
+	a, ok := toArray(v)
 	if !ok {
 		return &func1TypeError{"strflocaltime", v, x}
 	}
-	format, ok := x.(string)
+	format, ok := toString(x)
 	if !ok {
 		return &func1TypeError{"strflocaltime", v, x}
 	}
@@ -1929,11 +2071,11 @@ func funcStrflocaltime(v, x any) any {
 }
 
 func funcStrptime(v, x any) any {
-	s, ok := v.(string)
+	s, ok := toString(v)
 	if !ok {
 		return &func1TypeError{"strptime", v, x}
 	}
-	format, ok := x.(string)
+	format, ok := toString(x)
 	if !ok {
 		return &func1TypeError{"strptime", v, x}
 	}
@@ -1998,17 +2140,17 @@ func funcMatch(v, re, fs, testing any) any {
 	}
 	var flags string
 	if fs != nil {
-		v, ok := fs.(string)
+		v, ok := toString(fs)
 		if !ok {
 			return &func2TypeError{name, v, re, fs}
 		}
 		flags = v
 	}
-	s, ok := v.(string)
+	s, ok := toString(v)
 	if !ok {
 		return &func2TypeError{name, v, re, fs}
 	}
-	restr, ok := re.(string)
+	restr, ok := toString(re)
 	if !ok {
 		return &func2TypeError{name, v, re, fs}
 	}
@@ -2125,6 +2267,50 @@ func funcHaltError(v any, args []any) any {
 	return &haltError{v, code}
 }
 
+func toString(x any) (string, bool) {
+	switch x := x.(type) {
+	case string:
+		return x, true
+	case JQValue:
+		return toString(x.JQValueToGoJQ())
+	default:
+		return "", false
+	}
+}
+
+func toArray(x any) ([]any, bool) {
+	switch x := x.(type) {
+	case []any:
+		return x, true
+	case JQValue:
+		return toArray(x.JQValueToGoJQ())
+	default:
+		return nil, false
+	}
+}
+
+func toBoolean(x any) (bool, bool) {
+	switch x := x.(type) {
+	case bool:
+		return x, true
+	case JQValue:
+		return toBoolean(x.JQValueToGoJQ())
+	default:
+		return false, false
+	}
+}
+
+func isNull(x any) bool {
+	switch x := x.(type) {
+	case nil:
+		return true
+	case JQValue:
+		return isNull(x.JQValueToGoJQ())
+	default:
+		return false
+	}
+}
+
 func toInt(x any) (int, bool) {
 	switch x := x.(type) {
 	case int:
@@ -2141,6 +2327,8 @@ func toInt(x any) (int, bool) {
 			return math.MaxInt, true
 		}
 		return math.MinInt, true
+	case JQValue:
+		return toInt(x.JQValueToGoJQ())
 	default:
 		return 0, false
 	}
@@ -2164,6 +2352,8 @@ func toFloat(x any) (float64, bool) {
 		return x, true
 	case *big.Int:
 		return bigToFloat(x), true
+	case JQValue:
+		return toFloat(x.JQValueToGoJQ())
 	default:
 		return 0.0, false
 	}
