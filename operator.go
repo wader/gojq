@@ -304,6 +304,14 @@ func binopTypeSwitch[T any](
 	if n, ok := r.(json.Number); ok {
 		r = parseNumber(n)
 	}
+
+	if lj, ok := l.(JQValue); ok {
+		l = lj.JQValueToGoJQ()
+	}
+	if rj, ok := r.(JQValue); ok {
+		r = rj.JQValueToGoJQ()
+	}
+
 	switch l := l.(type) {
 	case int:
 		switch r := r.(type) {
@@ -374,6 +382,8 @@ func funcOpPlus(v any) any {
 		return v
 	case json.Number:
 		return v
+	case JQValue:
+		return funcOpPlus(v.JQValueToGoJQ())
 	default:
 		return &unaryTypeError{"plus", v}
 	}
@@ -399,6 +409,8 @@ func funcOpNegate(v any) any {
 			return v[1:]
 		}
 		return "-" + v
+	case JQValue:
+		return funcOpNegate(v.JQValueToGoJQ())
 	default:
 		return &unaryTypeError{"negate", v}
 	}
@@ -447,6 +459,13 @@ func funcOpAdd(_, l, r any) any {
 			if r == nil {
 				return l
 			}
+
+			if isNull(l) {
+				return r
+			} else if isNull(r) {
+				return l
+			}
+
 			return &binopTypeError{"add", l, r}
 		},
 	)
@@ -626,7 +645,9 @@ func funcOpMod(_, l, r any) any {
 }
 
 func funcOpAlt(_, l, r any) any {
-	if l == nil || l == false {
+	if isNull(l) {
+		return r
+	} else if lb, ok := toBoolean(l); ok && !lb {
 		return r
 	}
 	return l
