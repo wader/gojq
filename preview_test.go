@@ -7,7 +7,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/itchyny/gojq"
+	"github.com/wader/gojq"
 )
 
 func TestPreview(t *testing.T) {
