@@ -2,10 +2,18 @@ package gojq
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"math/big"
 	"strings"
 )
+
+func NormalizeNumbers(s string) interface{} {
+	if !newLexer(s).validNumber() {
+		return fmt.Errorf("invalid number: %q", s)
+	}
+	return normalizeNumbers(json.Number(s))
+}
 
 func normalizeNumber(v json.Number) interface{} {
 	if i, err := v.Int64(); err == nil && minInt <= i && i <= maxInt {
