@@ -250,6 +250,26 @@ loop:
 				sort.Slice(xs, func(i, j int) bool {
 					return xs[i][0].(string) < xs[j][0].(string)
 				})
+			case JSONObject:
+				if !env.paths.empty() && (env.expdepth == 0 && !reflect.DeepEqual(v, env.paths.top().([2]interface{})[1])) {
+					err = &invalidPathIterError{v}
+					break loop
+				}
+				lv := v.JsonLength()
+				l, ok := lv.(int)
+				if !ok {
+					err = &iteratorError{v}
+					break loop
+				}
+				if l == 0 {
+					break loop
+				}
+				xsv := v.JsonEach()
+				xs, ok = xsv.([][2]interface{})
+				if !ok {
+					err = &iteratorError{v}
+					break loop
+				}
 			default:
 				err = &iteratorError{v}
 				break loop
