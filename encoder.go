@@ -71,6 +71,8 @@ func (e *encoder) encode(v any) {
 		e.encodeArray(v)
 	case map[string]any:
 		e.encodeObject(v)
+	case JQValue:
+		e.encode(v.JQValueToGoJQ())
 	default:
 		panic(fmt.Sprintf("invalid type: %[1]T (%[1]v)", v))
 	}

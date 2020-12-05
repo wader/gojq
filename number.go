@@ -34,6 +34,8 @@ func ToInt(v any) (int, bool) {
 		return math.MinInt, true
 	case json.Number:
 		return ToInt(parseNumber(v))
+	case JQValue:
+		return ToInt(v.JQValueToGoJQ())
 	default:
 		return 0, false
 	}
@@ -56,6 +58,8 @@ func ToFloat64(v any) (float64, bool) {
 		return bigToFloat(v), true
 	case json.Number:
 		return ToFloat64(parseNumber(v))
+	case JQValue:
+		return ToFloat64(v.JQValueToGoJQ())
 	default:
 		return 0.0, false
 	}

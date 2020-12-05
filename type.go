@@ -12,7 +12,7 @@ import (
 // types (nil, bool, int, float64, *big.Int, json.Number, string, []any, and
 // map[string]any).
 func TypeOf(v any) string {
-	switch v.(type) {
+	switch v := v.(type) {
 	case nil:
 		return "null"
 	case bool:
@@ -25,6 +25,8 @@ func TypeOf(v any) string {
 		return "array"
 	case map[string]any:
 		return "object"
+	case JQValue:
+		return v.JQValueType()
 	default:
 		panic(fmt.Sprintf("invalid type: %[1]T (%[1]v)", v))
 	}
