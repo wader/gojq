@@ -7,6 +7,14 @@ import (
 	"strings"
 )
 
+func ValidNumber(s string) bool {
+	return newLexer(s).validNumber()
+}
+
+func NormalizeNumber(v json.Number) interface{} {
+	return normalizeNumber(v)
+}
+
 func normalizeNumber(v json.Number) interface{} {
 	if i, err := v.Int64(); err == nil && math.MinInt <= i && i <= math.MaxInt {
 		return int(i)
@@ -23,6 +31,10 @@ func normalizeNumber(v json.Number) interface{} {
 		return math.Inf(-1)
 	}
 	return math.Inf(1)
+}
+
+func NormalizeNumbers(v interface{}) interface{} {
+	return normalizeNumbers(v)
 }
 
 func normalizeNumbers(v interface{}) interface{} {

@@ -293,13 +293,15 @@ func funcLength(v interface{}) interface{} {
 		return len(v)
 	case map[string]interface{}:
 		return len(v)
+	case JQValue:
+		return v.JQValueLength()
 	default:
 		return &funcTypeError{"length", v}
 	}
 }
 
 func funcUtf8ByteLength(v interface{}) interface{} {
-	s, ok := v.(string)
+	s, ok := toString(v)
 	if !ok {
 		return &funcTypeError{"utf8bytelength", v}
 	}
@@ -320,6 +322,8 @@ func funcKeys(v interface{}) interface{} {
 			w[i] = k
 		}
 		return w
+	case JQValue:
+		return v.JQValueKeys()
 	default:
 		return &funcTypeError{"keys", v}
 	}
@@ -346,6 +350,8 @@ func values(v interface{}) ([]interface{}, bool) {
 			vs[i] = v[k]
 		}
 		return vs, true
+	case JQValue:
+		return values(v.JQValueToGoJQ())
 	default:
 		return nil, false
 	}
@@ -364,6 +370,8 @@ func funcHas(v, x interface{}) interface{} {
 		}
 	case nil:
 		return false
+	case JQValue:
+		return v.JQValueHas(x)
 	}
 	return &hasKeyTypeError{v, x}
 }
@@ -382,12 +390,18 @@ func funcToEntries(v interface{}) interface{} {
 			w[i] = map[string]interface{}{"key": k, "value": v[k]}
 		}
 		return w
+	case JQValue:
+		return funcToEntries(v.JQValueToGoJQ())
 	default:
 		return &funcTypeError{"to_entries", v}
 	}
 }
 
 func funcFromEntries(v interface{}) interface{} {
+	if jqv, ok := v.(JQValue); ok {
+		v = jqv.JQValueToGoJQ()
+	}
+
 	vs, ok := v.([]interface{})
 	if !ok {
 		return &funcTypeError{"from_entries", v}
@@ -403,6 +417,13 @@ func funcFromEntries(v interface{}) interface{} {
 			)
 			for _, k := range [4]string{"key", "Key", "name", "Name"} {
 				if k := v[k]; k != nil && k != false {
+					if jqvk, ok := k.(JQValue); ok {
+						k = jqvk.JQValueToGoJQ()
+						if k == false {
+							continue
+						}
+					}
+
 					if key, ok = k.(string); !ok {
 						return &objectKeyNotStringError{k}
 					}
@@ -427,6 +448,7 @@ func funcFromEntries(v interface{}) interface{} {
 
 func funcAdd(v interface{}) interface{} {
 	vs, ok := values(v)
+
 	if !ok {
 		return &funcTypeError{"add", v}
 	}
@@ -496,6 +518,8 @@ func funcToNumber(v interface{}) interface{} {
 			return fmt.Errorf("invalid number: %q", v)
 		}
 		return toNumber(v)
+	case JQValue:
+		return v.JQValueToNumber()
 	default:
 		return &funcTypeError{"tonumber", v}
 	}
@@ -506,7 +530,7 @@ func toNumber(v string) interface{} {
 }
 
 func funcToString(v interface{}) interface{} {
-	if s, ok := v.(string); ok {
+	if s, ok := toString(v); ok {
 		return s
 	}
 	return funcToJSON(v)
@@ -517,10 +541,11 @@ func funcType(v interface{}) interface{} {
 }
 
 func funcReverse(v interface{}) interface{} {
-	vs, ok := v.([]interface{})
+	vs, ok := toArray(v)
 	if !ok {
 		return &funcTypeError{"reverse", v}
 	}
+
 	ws := make([]interface{}, len(vs))
 	for i, v := range vs {
 		ws[len(ws)-i-1] = v
@@ -623,21 +648,23 @@ func indexFunc(v, x interface{}, f func(_, _ []interface{}) interface{}) interfa
 			return f(v, []interface{}{x})
 		}
 	case string:
-		if x, ok := x.(string); ok {
+		if x, ok := toString(x); ok {
 			return f(explode(v), explode(x))
 		}
 		return &expectedStringError{x}
+	case JQValue:
+		return indexFunc(v.JQValueToGoJQ(), x, f)
 	default:
 		return &expectedArrayError{v}
 	}
 }
 
 func funcStartsWith(v, x interface{}) interface{} {
-	s, ok := v.(string)
+	s, ok := toString(v)
 	if !ok {
 		return &funcTypeError{"startswith", v}
 	}
-	t, ok := x.(string)
+	t, ok := toString(x)
 	if !ok {
 		return &funcTypeError{"startswith", x}
 	}
@@ -645,11 +672,11 @@ func funcStartsWith(v, x interface{}) interface{} {
 }
 
 func funcEndsWith(v, x interface{}) interface{} {
-	s, ok := v.(string)
+	s, ok := toString(v)
 	if !ok {
 		return &funcTypeError{"endswith", v}
 	}
-	t, ok := x.(string)
+	t, ok := toString(x)
 	if !ok {
 		return &funcTypeError{"endswith", x}
 	}
@@ -657,11 +684,11 @@ func funcEndsWith(v, x interface{}) interface{} {
 }
 
 func funcLtrimstr(v, x interface{}) interface{} {
-	s, ok := v.(string)
+	s, ok := toString(v)
 	if !ok {
 		return v
 	}
-	t, ok := x.(string)
+	t, ok := toString(x)
 	if !ok {
 		return v
 	}
@@ -669,11 +696,11 @@ func funcLtrimstr(v, x interface{}) interface{} {
 }
 
 func funcRtrimstr(v, x interface{}) interface{} {
-	s, ok := v.(string)
+	s, ok := toString(v)
 	if !ok {
 		return v
 	}
-	t, ok := x.(string)
+	t, ok := toString(x)
 	if !ok {
 		return v
 	}
@@ -681,11 +708,11 @@ func funcRtrimstr(v, x interface{}) interface{} {
 }
 
 func funcExplode(v interface{}) interface{} {
-	s, ok := v.(string)
+	x, ok := toString(v)
 	if !ok {
 		return &funcTypeError{"explode", v}
 	}
-	return explode(s)
+	return explode(x)
 }
 
 func explode(s string) []interface{} {
@@ -699,7 +726,7 @@ func explode(s string) []interface{} {
 }
 
 func funcImplode(v interface{}) interface{} {
-	vs, ok := v.([]interface{})
+	vs, ok := toArray(v)
 	if !ok {
 		return &funcTypeError{"implode", v}
 	}
@@ -716,11 +743,11 @@ func funcImplode(v interface{}) interface{} {
 }
 
 func funcSplit(v interface{}, args []interface{}) interface{} {
-	s, ok := v.(string)
+	s, ok := toString(v)
 	if !ok {
 		return &funcTypeError{"split", v}
 	}
-	x, ok := args[0].(string)
+	x, ok := toString(args[0])
 	if !ok {
 		return &funcTypeError{"split", x}
 	}
@@ -730,7 +757,7 @@ func funcSplit(v interface{}, args []interface{}) interface{} {
 	} else {
 		var flags string
 		if args[1] != nil {
-			v, ok := args[1].(string)
+			v, ok := toString(args[1])
 			if !ok {
 				return &funcTypeError{"split", args[1]}
 			}
@@ -754,7 +781,7 @@ func funcToJSON(v interface{}) interface{} {
 }
 
 func funcFromJSON(v interface{}) interface{} {
-	s, ok := v.(string)
+	s, ok := toString(v)
 	if !ok {
 		return &funcTypeError{"fromjson", v}
 	}
@@ -771,11 +798,11 @@ func funcFromJSON(v interface{}) interface{} {
 }
 
 func funcFormat(v, x interface{}) interface{} {
-	s, ok := x.(string)
+	sx, ok := toString(x)
 	if !ok {
 		return &funcTypeError{"format", x}
 	}
-	fmt := "@" + s
+	fmt := "@" + sx
 	f := formatToFunc(fmt)
 	if f == nil {
 		return &formatNotFoundError{fmt}
@@ -827,7 +854,7 @@ func funcToTSV(v interface{}) interface{} {
 }
 
 func funcToSh(v interface{}) interface{} {
-	if _, ok := v.([]interface{}); !ok {
+	if _, ok := toArray(v); !ok {
 		v = []interface{}{v}
 	}
 	return formatJoin("sh", v, " ", func(s string) string {
@@ -836,12 +863,16 @@ func funcToSh(v interface{}) interface{} {
 }
 
 func formatJoin(typ string, v interface{}, sep string, escape func(string) string) interface{} {
-	vs, ok := v.([]interface{})
+	vs, ok := toArray(v)
 	if !ok {
 		return &funcTypeError{"@" + typ, v}
 	}
 	ss := make([]string, len(vs))
 	for i, v := range vs {
+		if jqv, ok := v.(JQValue); ok {
+			v = jqv.JQValueToGoJQ()
+		}
+
 		switch v := v.(type) {
 		case []interface{}, map[string]interface{}:
 			return &formatRowError{typ, v}
@@ -889,6 +920,8 @@ func funcIndex2(_, v, x interface{}) interface{} {
 			return nil
 		case map[string]interface{}:
 			return v[x]
+		case JQValue:
+			return v.JQValueKey(x)
 		default:
 			return &expectedObjectError{v}
 		}
@@ -901,6 +934,22 @@ func funcIndex2(_, v, x interface{}) interface{} {
 			return index(v, i)
 		case string:
 			return indexString(v, i)
+		case JQValue:
+			lv := v.JQValueSliceLen()
+			l, ok := lv.(int)
+			if !ok {
+				return lv
+			}
+			i := clampIndex(i, -1, l)
+
+			// TODO: JQValue -2 outside < 0, -1 outside > len
+			// TODO: redo this, nice to know actual index?
+			if i < 0 {
+				i = -2
+			} else if i >= l {
+				i = -1
+			}
+			return v.JQValueIndex(i)
 		default:
 			return &expectedArrayError{v}
 		}
@@ -926,6 +975,8 @@ func funcIndex2(_, v, x interface{}) interface{} {
 			return &expectedStartEndError{x}
 		}
 		return funcSlice(nil, v, end, start)
+	case JQValue:
+		return funcIndex2(nil, v, x.JQValueToGoJQ())
 	default:
 		switch v.(type) {
 		case []interface{}:
@@ -967,6 +1018,8 @@ func funcSlice(_, v, e, s interface{}) (r interface{}) {
 		return slice(v, e, s)
 	case string:
 		return sliceString(v, e, s)
+	case JQValue:
+		return sliceJQValue(v, e, s)
 	default:
 		return &expectedArrayError{v}
 	}
@@ -1035,6 +1088,33 @@ func sliceString(v string, e, s interface{}) interface{} {
 	return v[start:end]
 }
 
+func sliceJQValue(v JQValue, e, s interface{}) interface{} {
+	lv := v.JQValueSliceLen()
+	l, ok := lv.(int)
+	if !ok {
+		return lv
+	}
+
+	var start, end int
+	if s != nil {
+		if i, ok := toInt(s); ok {
+			start = clampIndex(i, 0, l)
+		} else {
+			return &arrayIndexNotNumberError{s}
+		}
+	}
+	if e != nil {
+		if i, ok := toInt(e); ok {
+			end = clampIndex(i, start, l)
+		} else {
+			return &arrayIndexNotNumberError{e}
+		}
+	} else {
+		end = l
+	}
+	return v.JQValueSlice(start, end)
+}
+
 func clampIndex(i, min, max int) int {
 	if i < 0 {
 		i += max
@@ -1070,7 +1150,7 @@ func funcFlatten(v interface{}, args []interface{}) interface{} {
 
 func flatten(xs, vs []interface{}, depth float64) []interface{} {
 	for _, v := range vs {
-		if vs, ok := v.([]interface{}); ok && depth != 0 {
+		if vs, ok := toArray(v); ok && depth != 0 {
 			xs = flatten(xs, vs, depth-1)
 		} else {
 			xs = append(xs, v)
@@ -1093,7 +1173,12 @@ func (iter *rangeIter) Next() (interface{}, bool) {
 }
 
 func funcRange(_ interface{}, xs []interface{}) interface{} {
-	for _, x := range xs {
+	for i, x := range xs {
+		if jqv, ok := x.(JQValue); ok {
+			x = jqv.JQValueToGoJQ()
+			xs[i] = x
+		}
+
 		switch x.(type) {
 		case int, float64, *big.Int:
 		default:
@@ -1104,7 +1189,7 @@ func funcRange(_ interface{}, xs []interface{}) interface{} {
 }
 
 func funcMin(v interface{}) interface{} {
-	vs, ok := v.([]interface{})
+	vs, ok := toArray(v)
 	if !ok {
 		return &funcTypeError{"min", v}
 	}
@@ -1112,11 +1197,11 @@ func funcMin(v interface{}) interface{} {
 }
 
 func funcMinBy(v, x interface{}) interface{} {
-	vs, ok := v.([]interface{})
+	vs, ok := toArray(v)
 	if !ok {
 		return &funcTypeError{"min_by", v}
 	}
-	xs, ok := x.([]interface{})
+	xs, ok := toArray(x)
 	if !ok {
 		return &funcTypeError{"min_by", x}
 	}
@@ -1127,7 +1212,7 @@ func funcMinBy(v, x interface{}) interface{} {
 }
 
 func funcMax(v interface{}) interface{} {
-	vs, ok := v.([]interface{})
+	vs, ok := toArray(v)
 	if !ok {
 		return &funcTypeError{"max", v}
 	}
@@ -1135,11 +1220,11 @@ func funcMax(v interface{}) interface{} {
 }
 
 func funcMaxBy(v, x interface{}) interface{} {
-	vs, ok := v.([]interface{})
+	vs, ok := toArray(v)
 	if !ok {
 		return &funcTypeError{"max_by", v}
 	}
-	xs, ok := x.([]interface{})
+	xs, ok := toArray(x)
 	if !ok {
 		return &funcTypeError{"max_by", x}
 	}
@@ -1166,15 +1251,20 @@ type sortItem struct {
 	value, key interface{}
 }
 
-func sortItems(name string, v, x interface{}) ([]*sortItem, error) {
-	vs, ok := v.([]interface{})
+func sortItems(name string, v, x interface{}) ([]*sortItem, interface{}) {
+	var ok bool
+	var vs []interface{}
+
+	vs, ok = toArray(v)
 	if !ok {
 		return nil, &funcTypeError{name, v}
 	}
-	xs, ok := x.([]interface{})
+
+	xs, ok := toArray(x)
 	if !ok {
 		return nil, &funcTypeError{name, x}
 	}
+
 	if len(vs) != len(xs) {
 		return nil, &lengthMismatchError{name, vs, xs}
 	}
@@ -1256,12 +1346,16 @@ func funcJoin(v, x interface{}) interface{} {
 	if len(vs) == 0 {
 		return ""
 	}
-	sep, ok := x.(string)
+	sep, ok := toString(x)
 	if len(vs) > 1 && !ok {
 		return &funcTypeError{"join", x}
 	}
 	ss := make([]string, len(vs))
 	for i, v := range vs {
+		if jqv, ok := v.(JQValue); ok {
+			v = jqv.JQValueToGoJQ()
+		}
+
 		switch v := v.(type) {
 		case nil:
 		case string:
@@ -1378,7 +1472,7 @@ func funcIsnormal(v interface{}) interface{} {
 }
 
 func funcSetpath(v, p, n interface{}) interface{} {
-	path, ok := p.([]interface{})
+	path, ok := toArray(p)
 	if !ok {
 		return &funcTypeError{"setpath", p}
 	}
@@ -1393,7 +1487,7 @@ func funcSetpath(v, p, n interface{}) interface{} {
 }
 
 func funcDelpaths(v, p interface{}) interface{} {
-	paths, ok := p.([]interface{})
+	paths, ok := toArray(p)
 	if !ok {
 		return &funcTypeError{"delpaths", p}
 	}
@@ -1403,7 +1497,7 @@ func funcDelpaths(v, p interface{}) interface{} {
 	var empty struct{}
 	var err error
 	for _, p := range paths {
-		path, ok := p.([]interface{})
+		path, ok := toArray(p)
 		if !ok {
 			return &funcTypeError{"delpaths", p}
 		}
@@ -1418,6 +1512,14 @@ func update(v interface{}, path []interface{}, n interface{}) (interface{}, erro
 	if len(path) == 0 {
 		return n, nil
 	}
+
+	if jqv, ok := v.(JQValue); ok {
+		v = jqv.JQValueToGoJQ()
+		if err, ok := v.(error); ok {
+			return nil, err
+		}
+	}
+
 	switch p := path[0].(type) {
 	case string:
 		switch v := v.(type) {
@@ -1587,14 +1689,14 @@ func deleteEmpty(v interface{}) interface{} {
 }
 
 func funcGetpath(v, p interface{}) interface{} {
-	keys, ok := p.([]interface{})
+	keys, ok := toArray(p)
 	if !ok {
 		return &funcTypeError{"getpath", p}
 	}
 	u := v
 	for _, x := range keys {
 		switch v.(type) {
-		case nil, []interface{}, map[string]interface{}:
+		case nil, []interface{}, map[string]interface{}, JQValue:
 			v = funcIndex2(nil, v, x)
 			if _, ok := v.(error); ok {
 				return &getpathError{u, p}
@@ -1607,7 +1709,7 @@ func funcGetpath(v, p interface{}) interface{} {
 }
 
 func funcTranspose(v interface{}) interface{} {
-	vss, ok := v.([]interface{})
+	vss, ok := toArray(v)
 	if !ok {
 		return &funcTypeError{"transpose", v}
 	}
@@ -1616,7 +1718,7 @@ func funcTranspose(v interface{}) interface{} {
 	}
 	var l int
 	for _, vs := range vss {
-		vs, ok := vs.([]interface{})
+		vs, ok := toArray(vs)
 		if !ok {
 			return &funcTypeError{"transpose", v}
 		}
@@ -1632,7 +1734,8 @@ func funcTranspose(v interface{}) interface{} {
 		xs[i] = s
 	}
 	for i, vs := range vss {
-		for j, v := range vs.([]interface{}) {
+		vs, _ := toArray(vs)
+		for j, v := range vs {
 			wss[j][i] = v
 		}
 	}
@@ -1640,7 +1743,7 @@ func funcTranspose(v interface{}) interface{} {
 }
 
 func funcBsearch(v, t interface{}) interface{} {
-	vs, ok := v.([]interface{})
+	vs, ok := toArray(v)
 	if !ok {
 		return &funcTypeError{"bsearch", v}
 	}
@@ -1682,7 +1785,7 @@ func epochToArray(v float64, loc *time.Location) []interface{} {
 }
 
 func funcMktime(v interface{}) interface{} {
-	if a, ok := v.([]interface{}); ok {
+	if a, ok := toArray(v); ok {
 		t, err := arrayToTime("mktime", a, time.UTC)
 		if err != nil {
 			return err
@@ -1700,8 +1803,8 @@ func funcStrftime(v, x interface{}) interface{} {
 	if w, ok := toFloat(v); ok {
 		v = epochToArray(w, time.UTC)
 	}
-	if a, ok := v.([]interface{}); ok {
-		if format, ok := x.(string); ok {
+	if a, ok := toArray(v); ok {
+		if format, ok := toString(x); ok {
 			t, err := arrayToTime("strftime", a, time.UTC)
 			if err != nil {
 				return err
@@ -1717,8 +1820,8 @@ func funcStrflocaltime(v, x interface{}) interface{} {
 	if w, ok := toFloat(v); ok {
 		v = epochToArray(w, time.Local)
 	}
-	if a, ok := v.([]interface{}); ok {
-		if format, ok := x.(string); ok {
+	if a, ok := toArray(v); ok {
+		if format, ok := toString(x); ok {
 			t, err := arrayToTime("strflocaltime", a, time.Local)
 			if err != nil {
 				return err
@@ -1731,8 +1834,8 @@ func funcStrflocaltime(v, x interface{}) interface{} {
 }
 
 func funcStrptime(v, x interface{}) interface{} {
-	if v, ok := v.(string); ok {
-		if format, ok := x.(string); ok {
+	if v, ok := toString(v); ok {
+		if format, ok := toString(x); ok {
 			t, err := timefmt.Parse(v, format)
 			if err != nil {
 				return err
@@ -1795,17 +1898,17 @@ func funcNow(interface{}) interface{} {
 func funcMatch(v, re, fs, testing interface{}) interface{} {
 	var flags string
 	if fs != nil {
-		v, ok := fs.(string)
+		v, ok := toString(fs)
 		if !ok {
 			return &funcTypeError{"match", fs}
 		}
 		flags = v
 	}
-	s, ok := v.(string)
+	s, ok := toString(v)
 	if !ok {
 		return &funcTypeError{"match", v}
 	}
-	restr, ok := re.(string)
+	restr, ok := toString(re)
 	if !ok {
 		return &funcTypeError{"match", v}
 	}
@@ -1926,6 +2029,50 @@ func funcHaltError(v interface{}, args []interface{}) interface{} {
 	return &exitCodeError{v, code, true}
 }
 
+func toString(x interface{}) (string, bool) {
+	switch x := x.(type) {
+	case string:
+		return x, true
+	case JQValue:
+		return toString(x.JQValueToGoJQ())
+	default:
+		return "", false
+	}
+}
+
+func toArray(x interface{}) ([]interface{}, bool) {
+	switch x := x.(type) {
+	case []interface{}:
+		return x, true
+	case JQValue:
+		return toArray(x.JQValueToGoJQ())
+	default:
+		return nil, false
+	}
+}
+
+func toBoolean(x interface{}) (bool, bool) {
+	switch x := x.(type) {
+	case bool:
+		return x, true
+	case JQValue:
+		return toBoolean(x.JQValueToGoJQ())
+	default:
+		return false, false
+	}
+}
+
+func isNull(x interface{}) bool {
+	switch x := x.(type) {
+	case nil:
+		return true
+	case JQValue:
+		return isNull(x.JQValueToGoJQ())
+	default:
+		return false
+	}
+}
+
 func toInt(x interface{}) (int, bool) {
 	switch x := x.(type) {
 	case int:
@@ -1942,6 +2089,8 @@ func toInt(x interface{}) (int, bool) {
 			return math.MaxInt, true
 		}
 		return math.MinInt, true
+	case JQValue:
+		return toInt(x.JQValueToGoJQ())
 	default:
 		return 0, false
 	}
@@ -1965,6 +2114,8 @@ func toFloat(x interface{}) (float64, bool) {
 		return x, true
 	case *big.Int:
 		return bigToFloat(x), true
+	case JQValue:
+		return toFloat(x.JQValueToGoJQ())
 	default:
 		return 0.0, false
 	}
