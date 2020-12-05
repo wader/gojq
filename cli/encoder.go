@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strconv"
 	"unicode/utf8"
+
+	"github.com/wader/gojq"
 )
 
 type encoder struct {
@@ -55,6 +57,8 @@ func (e *encoder) encode(v interface{}) {
 		e.encodeArray(v)
 	case map[string]interface{}:
 		e.encodeMap(v)
+	case gojq.JQValue:
+		e.encode(v.JQValueToGoJQ())
 	default:
 		panic(fmt.Sprintf("invalid value: %v", v))
 	}
