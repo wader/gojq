@@ -317,6 +317,14 @@ func binopTypeSwitch(
 	callbackArrays func(_, _ []interface{}) interface{},
 	callbackMaps func(_, _ map[string]interface{}) interface{},
 	fallback func(_, _ interface{}) interface{}) interface{} {
+
+	if lj, ok := l.(JQValue); ok {
+		l = lj.JQValueToGoJQ()
+	}
+	if rj, ok := r.(JQValue); ok {
+		r = rj.JQValueToGoJQ()
+	}
+
 	switch l := l.(type) {
 	case int:
 		switch r := r.(type) {
@@ -385,6 +393,8 @@ func funcOpPlus(v interface{}) interface{} {
 		return v
 	case *big.Int:
 		return v
+	case JQValue:
+		return funcOpPlus(v.JQValueToGoJQ())
 	default:
 		return &unaryTypeError{"plus", v}
 	}
@@ -398,6 +408,8 @@ func funcOpNegate(v interface{}) interface{} {
 		return -v
 	case *big.Int:
 		return new(big.Int).Neg(v)
+	case JQValue:
+		return funcOpNegate(v.JQValueToGoJQ())
 	default:
 		return &unaryTypeError{"negate", v}
 	}
@@ -450,6 +462,13 @@ func funcOpAdd(_, l, r interface{}) interface{} {
 			if r == nil {
 				return l
 			}
+
+			if isNull(l) {
+				return r
+			} else if isNull(r) {
+				return l
+			}
+
 			return &binopTypeError{"add", l, r}
 		},
 	)
@@ -625,7 +644,9 @@ func funcOpMod(_, l, r interface{}) interface{} {
 }
 
 func funcOpAlt(_, l, r interface{}) interface{} {
-	if l == nil || l == false {
+	if isNull(l) {
+		return r
+	} else if lb, ok := toBoolean(l); ok && !lb {
 		return r
 	}
 	return l
