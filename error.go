@@ -358,6 +358,8 @@ func typeof(v interface{}) string {
 		return "array"
 	case map[string]interface{}:
 		return "object"
+	case JQValue:
+		return fmt.Sprintf("JQValue(%s)", v.JQValueType())
 	default:
 		panic(fmt.Sprintf("invalid type: %T (%v)", v, v))
 	}
