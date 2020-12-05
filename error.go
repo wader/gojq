@@ -327,7 +327,10 @@ func typeof(v interface{}) (s string) {
 		if _, ok := v.(*big.Int); ok {
 			return "number"
 		}
-		return "ptr"
+		if jo, ok := v.(JQValue); ok {
+			return jo.JQValueType()
+		}
+		return t.String()
 	default:
 		return k.String()
 	}

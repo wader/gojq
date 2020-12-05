@@ -59,6 +59,8 @@ func (e *encoder) encode(v interface{}) error {
 		return e.encodeArray(v)
 	case map[string]interface{}:
 		return e.encodeMap(v)
+	case JQValue:
+		return e.encode(v.JQValue())
 	default:
 		return fmt.Errorf("invalid value: %v", v)
 	}

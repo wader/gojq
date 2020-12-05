@@ -61,6 +61,9 @@ loop:
 			m := make(map[string]interface{}, n)
 			for i := 0; i < n; i++ {
 				v, k := env.pop(), env.pop()
+				if jv, ok := k.(JQValue); ok {
+					k = jv.JQValueToString()
+				}
 				s, ok := k.(string)
 				if !ok {
 					err = &objectKeyNotStringError{k}
@@ -176,7 +179,7 @@ loop:
 						break loop
 					}
 					for _, p := range ps {
-						env.paths.push(pathValue{path: p, value: w})
+						env.paths.push(PathValue{Path: p, Value: w})
 					}
 				}
 			default:
@@ -218,40 +221,40 @@ loop:
 				break loop
 			}
 			backtrack = false
-			var xs []pathValue
+			var xs []PathValue
 			switch v := env.pop().(type) {
-			case []pathValue:
+			case []PathValue:
 				xs = v
 			case []interface{}:
 				if !env.paths.empty() && env.expdepth == 0 &&
-					!reflect.DeepEqual(v, env.paths.top().(pathValue).value) {
+					!reflect.DeepEqual(v, env.paths.top().(PathValue).Value) {
 					err = &invalidPathIterError{v}
 					break loop
 				}
 				if len(v) == 0 {
 					break loop
 				}
-				xs = make([]pathValue, len(v))
+				xs = make([]PathValue, len(v))
 				for i, v := range v {
-					xs[i] = pathValue{path: i, value: v}
+					xs[i] = PathValue{Path: i, Value: v}
 				}
 			case map[string]interface{}:
 				if !env.paths.empty() && env.expdepth == 0 &&
-					!reflect.DeepEqual(v, env.paths.top().(pathValue).value) {
+					!reflect.DeepEqual(v, env.paths.top().(PathValue).Value) {
 					err = &invalidPathIterError{v}
 					break loop
 				}
 				if len(v) == 0 {
 					break loop
 				}
-				xs = make([]pathValue, len(v))
+				xs = make([]PathValue, len(v))
 				var i int
 				for k, v := range v {
-					xs[i] = pathValue{path: k, value: v}
+					xs[i] = PathValue{Path: k, Value: v}
 					i++
 				}
 				sort.Slice(xs, func(i, j int) bool {
-					return xs[i].path.(string) < xs[j].path.(string)
+					return xs[i].Path.(string) < xs[j].Path.(string)
 				})
 			case Iter:
 				if !env.paths.empty() && env.expdepth == 0 {
@@ -270,6 +273,27 @@ loop:
 					continue
 				}
 				break loop
+			case JQValue:
+				// TODO: not sure about the compare here? compare JQValue instance somehow?
+				_, isJQValue := v.(JQValue)
+				if !env.paths.empty() && env.expdepth == 0 && !isJQValue {
+					err = &invalidPathIterError{v}
+					break loop
+				}
+				xsv := v.JQValueEach()
+				if e, ok := xsv.(error); ok {
+					err = e
+					break loop
+				}
+				var ok bool
+				xs, ok = xsv.([]PathValue)
+				if !ok {
+					err = &iteratorError{xsv}
+					break loop
+				}
+				if len(xs) == 0 {
+					break loop
+				}
 			default:
 				err = &iteratorError{v}
 				break loop
@@ -279,7 +303,7 @@ loop:
 				env.pushfork(code.op, pc)
 				env.pop()
 			}
-			env.push(xs[0].value)
+			env.push(xs[0].Value)
 			if !env.paths.empty() && env.expdepth == 0 {
 				env.paths.push(xs[0])
 			}
@@ -289,7 +313,7 @@ loop:
 			env.expdepth--
 		case oppathbegin:
 			env.paths.push(env.expdepth)
-			env.paths.push(pathValue{value: env.stack.top()})
+			env.paths.push(PathValue{Value: env.stack.top()})
 			env.expdepth = 0
 		case oppathend:
 			if backtrack {
@@ -300,7 +324,9 @@ loop:
 			}
 			env.pop()
 			x := env.pop()
-			if reflect.DeepEqual(x, env.paths.top().(pathValue).value) {
+			// TODO: not sure about the compare here? compare JQValue instance somehow?
+			_, isJQValue := x.(JQValue)
+			if reflect.DeepEqual(x, env.paths.top().(PathValue).Value) || isJQValue {
 				env.push(env.poppaths())
 				env.expdepth = env.paths.pop().(int)
 			} else {
@@ -358,30 +384,26 @@ func (env *env) index(v [2]int) int {
 	return env.scopeOffset(v[0]) + v[1]
 }
 
-type pathValue struct {
-	path, value interface{}
-}
-
 func (env *env) pathEntries(name string, x interface{}, args []interface{}) ([]interface{}, error) {
 	switch name {
 	case "_index":
 		if env.expdepth > 0 {
 			return nil, nil
-		} else if !reflect.DeepEqual(args[0], env.paths.top().(pathValue).value) {
+		} else if !reflect.DeepEqual(args[0], env.paths.top().(PathValue).Value) {
 			return nil, &invalidPathError{x}
 		}
 		return []interface{}{args[1]}, nil
 	case "_slice":
 		if env.expdepth > 0 {
 			return nil, nil
-		} else if !reflect.DeepEqual(args[0], env.paths.top().(pathValue).value) {
+		} else if !reflect.DeepEqual(args[0], env.paths.top().(PathValue).Value) {
 			return nil, &invalidPathError{x}
 		}
 		return []interface{}{map[string]interface{}{"start": args[2], "end": args[1]}}, nil
 	case "getpath":
 		if env.expdepth > 0 {
 			return nil, nil
-		} else if !reflect.DeepEqual(x, env.paths.top().(pathValue).value) {
+		} else if !reflect.DeepEqual(x, env.paths.top().(PathValue).Value) {
 			return nil, &invalidPathError{x}
 		}
 		return args[0].([]interface{}), nil
@@ -393,11 +415,11 @@ func (env *env) pathEntries(name string, x interface{}, args []interface{}) ([]i
 func (env *env) poppaths() []interface{} {
 	var xs []interface{}
 	for {
-		p := env.paths.pop().(pathValue)
-		if p.path == nil {
+		p := env.paths.pop().(PathValue)
+		if p.Path == nil {
 			break
 		}
-		xs = append(xs, p.path)
+		xs = append(xs, p.Path)
 	}
 	for i := 0; i < len(xs)/2; i++ { // reverse
 		j := len(xs) - 1 - i

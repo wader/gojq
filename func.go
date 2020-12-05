@@ -47,19 +47,19 @@ func init() {
 		"builtins":       argFunc0(nil),
 		"input":          argFunc0(nil),
 		"modulemeta":     argFunc0(nil),
-		"length":         argFunc0(funcLength),
+		"length":         argFuncV0(funcLength),
 		"utf8bytelength": argFunc0(funcUtf8ByteLength),
-		"keys":           argFunc0(funcKeys),
-		"has":            argFunc1(funcHas),
+		"keys":           argFuncV0(funcKeys),
+		"has":            argFuncV1(funcHas),
 		"add":            argFunc0(funcAdd),
-		"tonumber":       argFunc0(funcToNumber),
-		"tostring":       argFunc0(funcToString),
-		"type":           argFunc0(funcType),
-		"reverse":        argFunc0(funcReverse),
+		"tonumber":       argFuncV0(funcToNumber),
+		"tostring":       argFuncV0(funcToString),
+		"type":           argFuncV0(funcType),
+		"reverse":        argFuncV0(funcReverse),
 		"contains":       argFunc1(funcContains),
 		"explode":        argFunc0(funcExplode),
 		"implode":        argFunc0(funcImplode),
-		"split":          {argcount1 | argcount2, false, funcSplit},
+		"split":          argFuncN(argcount1|argcount2, funcSplit),
 		"tojson":         argFunc0(funcToJSON),
 		"fromjson":       argFunc0(funcFromJSON),
 		"format":         argFunc1(funcFormat),
@@ -70,30 +70,30 @@ func init() {
 		"_tosh":          argFunc0(funcToSh),
 		"_tobase64":      argFunc0(funcToBase64),
 		"_tobase64d":     argFunc0(funcToBase64d),
-		"_index":         argFunc2(funcIndex),
-		"_slice":         argFunc3(funcSlice),
+		"_index":         argFuncV2(funcIndex),
+		"_slice":         argFuncV3(funcSlice),
 		"_break":         argFunc0(funcBreak),
 		"_plus":          argFunc0(funcOpPlus),
 		"_negate":        argFunc0(funcOpNegate),
 		"_bnot":          argFunc0(funcOpBnot),
-		"_add":           argFunc2(funcOpAdd),
-		"_subtract":      argFunc2(funcOpSub),
-		"_multiply":      argFunc2(funcOpMul),
-		"_divide":        argFunc2(funcOpDiv),
-		"_modulo":        argFunc2(funcOpMod),
-		"_bsl":           argFunc2(funcOpBSL),
-		"_bsr":           argFunc2(funcOpBSR),
-		"_band":          argFunc2(funcOpBand),
-		"_bor":           argFunc2(funcOpBor),
-		"_bxor":          argFunc2(funcOpBxor),
-		"_intdiv":        argFunc2(funcOpIntDiv),
-		"_alternative":   argFunc2(funcOpAlt),
-		"_equal":         argFunc2(funcOpEq),
-		"_notequal":      argFunc2(funcOpNe),
-		"_greater":       argFunc2(funcOpGt),
-		"_less":          argFunc2(funcOpLt),
-		"_greatereq":     argFunc2(funcOpGe),
-		"_lesseq":        argFunc2(funcOpLe),
+		"_add":           argOp2(funcOpAdd),
+		"_subtract":      argOp2(funcOpSub),
+		"_multiply":      argOp2(funcOpMul),
+		"_divide":        argOp2(funcOpDiv),
+		"_modulo":        argOp2(funcOpMod),
+		"_bsl":           argOp2(funcOpBSL),
+		"_bsr":           argOp2(funcOpBSR),
+		"_band":          argOp2(funcOpBand),
+		"_bor":           argOp2(funcOpBor),
+		"_bxor":          argOp2(funcOpBxor),
+		"_intdiv":        argOp2(funcOpIntDiv),
+		"_alternative":   argOp2(funcOpAlt),
+		"_equal":         argOp2(funcOpEq),
+		"_notequal":      argOp2(funcOpNe),
+		"_greater":       argOp2(funcOpGt),
+		"_less":          argOp2(funcOpLt),
+		"_greatereq":     argOp2(funcOpGe),
+		"_lesseq":        argOp2(funcOpLe),
 		"_min_by":        argFunc1(funcMinBy),
 		"_max_by":        argFunc1(funcMaxBy),
 		"_sort_by":       argFunc1(funcSortBy),
@@ -166,9 +166,9 @@ func init() {
 		"nan":            argFunc0(funcNan),
 		"isnan":          argFunc0(funcIsnan),
 		"isnormal":       argFunc0(funcIsnormal),
-		"setpath":        argFunc2(funcSetpath),
+		"setpath":        argFuncV2(funcSetpath),
 		"delpaths":       argFunc1(funcDelpaths),
-		"getpath":        argFunc1(funcGetpath),
+		"getpath":        argFuncV1(funcGetpath),
 		"bsearch":        argFunc1(funcBsearch),
 		"gmtime":         argFunc0(funcGmtime),
 		"localtime":      argFunc0(funcLocaltime),
@@ -178,17 +178,70 @@ func init() {
 		"strptime":       argFunc1(funcStrptime),
 		"now":            argFunc0(funcNow),
 		"_match":         argFunc3(funcMatch),
-		"error":          {argcount0 | argcount1, false, funcError},
+		"error":          argFuncN(argcount0|argcount1, funcError),
 		"halt":           argFunc0(funcHalt),
-		"halt_error":     {argcount0 | argcount1, false, funcHaltError},
+		"halt_error":     argFuncN(argcount0|argcount1, funcHaltError),
 		"_type_error":    argFunc1(internalfuncTypeError),
+	}
+}
+
+func hasJQValue(v interface{}) bool {
+	switch v := v.(type) {
+	case JQValue:
+		return true
+	case []interface{}:
+		for _, e := range v {
+			if hasJQValue(e) {
+				return true
+			}
+		}
+	case map[string]interface{}:
+		for _, e := range v {
+			if hasJQValue(e) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func resolveJQValue(v interface{}) interface{} {
+	if !hasJQValue(v) {
+		return v
+	}
+
+	switch v := v.(type) {
+	case JQValue:
+		return v.JQValue()
+	case []interface{}:
+		vs := make([]interface{}, len(v))
+		for i, e := range v {
+			vs[i] = resolveJQValue(e)
+		}
+		return vs
+	case map[string]interface{}:
+		vm := make(map[string]interface{}, len(v))
+		for k, e := range v {
+			vm[k] = resolveJQValue(e)
+		}
+		return vm
+	}
+
+	return v
+}
+
+func argOp2(fn func(interface{}, interface{}, interface{}) interface{}) function {
+	return function{
+		argcount2, false, func(v interface{}, args []interface{}) interface{} {
+			return fn(nil, resolveJQValue(args[0]), resolveJQValue(args[1]))
+		},
 	}
 }
 
 func argFunc0(fn func(interface{}) interface{}) function {
 	return function{
 		argcount0, false, func(v interface{}, _ []interface{}) interface{} {
-			return fn(v)
+			return fn(resolveJQValue(v))
 		},
 	}
 }
@@ -196,7 +249,7 @@ func argFunc0(fn func(interface{}) interface{}) function {
 func argFunc1(fn func(interface{}, interface{}) interface{}) function {
 	return function{
 		argcount1, false, func(v interface{}, args []interface{}) interface{} {
-			return fn(v, args[0])
+			return fn(resolveJQValue(v), resolveJQValue(args[0]))
 		},
 	}
 }
@@ -204,7 +257,7 @@ func argFunc1(fn func(interface{}, interface{}) interface{}) function {
 func argFunc2(fn func(interface{}, interface{}, interface{}) interface{}) function {
 	return function{
 		argcount2, false, func(v interface{}, args []interface{}) interface{} {
-			return fn(v, args[0], args[1])
+			return fn(resolveJQValue(v), resolveJQValue(args[0]), resolveJQValue(args[1]))
 		},
 	}
 }
@@ -212,7 +265,59 @@ func argFunc2(fn func(interface{}, interface{}, interface{}) interface{}) functi
 func argFunc3(fn func(interface{}, interface{}, interface{}, interface{}) interface{}) function {
 	return function{
 		argcount3, false, func(v interface{}, args []interface{}) interface{} {
+			return fn(resolveJQValue(v), resolveJQValue(args[0]), args[1], args[2])
+		},
+	}
+}
+
+func argFuncN(argcount int, fn func(v interface{}, args []interface{}) interface{}) function {
+	return function{
+		argcount, false, func(v interface{}, args []interface{}) interface{} {
+			// TODO: ok to modify args?
+			for i := range args {
+				args[i] = resolveJQValue(args[i])
+			}
+			return fn(resolveJQValue(v), args)
+		},
+	}
+}
+
+func argFuncV0(fn func(interface{}) interface{}) function {
+	return function{
+		argcount0, false, func(v interface{}, _ []interface{}) interface{} {
+			return fn(v)
+		},
+	}
+}
+
+func argFuncV1(fn func(interface{}, interface{}) interface{}) function {
+	return function{
+		argcount1, false, func(v interface{}, args []interface{}) interface{} {
+			return fn(v, args[0])
+		},
+	}
+}
+
+func argFuncV2(fn func(interface{}, interface{}, interface{}) interface{}) function {
+	return function{
+		argcount2, false, func(v interface{}, args []interface{}) interface{} {
+			return fn(v, args[0], args[1])
+		},
+	}
+}
+
+func argFuncV3(fn func(interface{}, interface{}, interface{}, interface{}) interface{}) function {
+	return function{
+		argcount3, false, func(v interface{}, args []interface{}) interface{} {
 			return fn(v, args[0], args[1], args[2])
+		},
+	}
+}
+
+func argFuncVN(argcount int, fn func(v interface{}, args []interface{}) interface{}) function {
+	return function{
+		argcount, false, func(v interface{}, args []interface{}) interface{} {
+			return fn(v, args)
 		},
 	}
 }
@@ -278,6 +383,8 @@ func funcLength(v interface{}) interface{} {
 		return new(big.Int).Abs(v)
 	case nil:
 		return 0
+	case JQValue:
+		return v.JQValueLength()
 	default:
 		return &funcTypeError{"length", v}
 	}
@@ -313,6 +420,8 @@ func funcKeys(v interface{}) interface{} {
 			u[i] = x
 		}
 		return u
+	case JQValue:
+		return v.JQValueKeys()
 	default:
 		return &funcTypeError{"keys", v}
 	}
@@ -333,6 +442,8 @@ func funcHas(v, x interface{}) interface{} {
 		default:
 			return &hasKeyTypeError{v, x}
 		}
+	case JQValue:
+		return v.JQValueHasKey(x)
 	default:
 		return &hasKeyTypeError{v, x}
 	}
@@ -400,36 +511,60 @@ func funcToNumber(v interface{}) interface{} {
 	case int, float64, *big.Int:
 		return v
 	case string:
-		if !newLexer(v).validNumber() {
-			return fmt.Errorf("invalid number: %q", v)
-		}
-		return normalizeNumbers(json.Number(v))
+		return NormalizeNumbers(v)
+	case JQValue:
+		return v.JQValueToNumber()
 	default:
 		return &funcTypeError{"tonumber", v}
 	}
 }
 
 func funcToString(v interface{}) interface{} {
-	if s, ok := v.(string); ok {
-		return s
+	switch v := v.(type) {
+	case string:
+		return v
+	case JQValue:
+		return v.JQValueToString()
+	default:
+		return funcToJSON(v)
 	}
-	return funcToJSON(v)
 }
 
 func funcType(v interface{}) interface{} {
-	return typeof(v)
+	switch v := v.(type) {
+	case JQValue:
+		return v.JQValueType()
+	default:
+		return typeof(v)
+	}
 }
 
 func funcReverse(v interface{}) interface{} {
-	vs, ok := v.([]interface{})
-	if !ok {
+	switch vs := v.(type) {
+	case []interface{}:
+		ws := make([]interface{}, len(vs))
+		for i, v := range vs {
+			ws[len(ws)-i-1] = v
+		}
+		return ws
+	case JQValue:
+		lv := vs.JQValueLength()
+		l, ok := lv.(int)
+		if !ok {
+			return lv
+		}
+		ws := make([]interface{}, l)
+		vsa := vs.JQValueSlice(0, len(ws))
+		if vas, ok := vsa.([]interface{}); ok {
+			for i, v := range vas {
+				ws[len(ws)-i-1] = v
+			}
+			return ws
+		}
+		return vsa
+	default:
 		return &expectedArrayError{v}
 	}
-	ws := make([]interface{}, len(vs))
-	for i, v := range vs {
-		ws[len(ws)-i-1] = v
-	}
-	return ws
 }
 
 func funcContains(v, x interface{}) interface{} {
@@ -725,6 +860,8 @@ func funcIndex(_, v, x interface{}) interface{} {
 			return nil
 		case map[string]interface{}:
 			return v[x]
+		case JQValue:
+			return v.JQValueKey(x)
 		default:
 			return &expectedObjectError{v}
 		}
@@ -733,7 +870,8 @@ func funcIndex(_, v, x interface{}) interface{} {
 		switch v := v.(type) {
 		case nil:
 			return nil
-		case []interface{}:
+		case []interface{},
+			JQValue:
 			return funcIndexSlice(nil, nil, &idx, v)
 		case string:
 			switch v := funcIndexSlice(nil, nil, &idx, explode(v)).(type) {
@@ -811,7 +949,7 @@ func funcSlice(_, v, end, start interface{}) (r interface{}) {
 	switch v := v.(type) {
 	case nil:
 		return nil
-	case []interface{}:
+	case []interface{}, JQValue:
 		if start != nil {
 			if start, ok := toInt(start); ok {
 				if end != nil {
@@ -836,38 +974,65 @@ func funcSlice(_, v, end, start interface{}) (r interface{}) {
 	}
 }
 
-func funcIndexSlice(start, end, index *int, a []interface{}) interface{} {
-	aa := a
+func funcIndexSlice(start, end, index *int, v interface{}) interface{} {
+	var l int
+	switch v := v.(type) {
+	case []interface{}:
+		l = len(v)
+	case JQValue:
+		var ok bool
+		lv := v.JQValueLength()
+		l, ok = lv.(int)
+		if !ok {
+			return lv
+		}
+	}
+
 	if index != nil {
-		i := toIndex(aa, *index)
+		i := toIndex(l, *index)
 		if i < 0 {
 			return nil
 		}
-		return a[i]
-	}
-	if end != nil {
-		i := toIndex(aa, *end)
-		if i == -1 {
-			i = len(a)
-		} else if i == -2 {
-			i = 0
+
+		switch v := v.(type) {
+		case []interface{}:
+			return v[i]
+		case JQValue:
+			return v.JQValueIndex(i)
 		}
-		a = a[:i]
+	}
+
+	endIdx := l
+	var startIdx int
+
+	if end != nil {
+		endIdx = toIndex(l, *end)
+		if endIdx == -1 {
+			endIdx = l
+		} else if endIdx == -2 {
+			endIdx = 0
+		}
 	}
 	if start != nil {
-		i := toIndex(aa, *start)
-		if i == -1 || len(a) < i {
-			i = len(a)
-		} else if i == -2 {
-			i = 0
+		startIdx = toIndex(l, *start)
+		if startIdx == -1 || startIdx > endIdx {
+			startIdx = endIdx
+		} else if startIdx == -2 {
+			startIdx = 0
 		}
-		a = a[i:]
 	}
-	return a
+
+	switch v := v.(type) {
+	case []interface{}:
+		return v[startIdx:endIdx]
+	case JQValue:
+		return v.JQValueSlice(startIdx, endIdx)
+	default:
+		panic("unreachable")
+	}
 }
 
-func toIndex(a []interface{}, i int) int {
-	l := len(a)
+func toIndex(l int, i int) int {
 	switch {
 	case i < -l:
 		return -2
@@ -1229,7 +1394,7 @@ func updatePaths(v interface{}, path []interface{}, w interface{}, delpaths bool
 		case []interface{}:
 			var start, end int
 			if x, ok := toInt(x["start"]); ok {
-				x := toIndex(uu, x)
+				x := toIndex(len(uu), x)
 				if x > len(uu) || x == -1 {
 					start = len(uu)
 				} else if x == -2 {
@@ -1239,7 +1404,7 @@ func updatePaths(v interface{}, path []interface{}, w interface{}, delpaths bool
 				}
 			}
 			if x, ok := toInt(x["end"]); ok {
-				x := toIndex(uu, x)
+				x := toIndex(len(uu), x)
 				if x == -1 {
 					end = len(uu)
 				} else if x < start {
@@ -1317,6 +1482,7 @@ func funcGetpath(v, p interface{}) interface{} {
 		case map[string]interface{}:
 		case []interface{}:
 		case nil:
+		case JQValue:
 		default:
 			return &getpathError{u, p}
 		}
@@ -1609,6 +1775,8 @@ func toInt(x interface{}) (int, bool) {
 			return maxInt, true
 		}
 		return minInt, true
+	case JQValue:
+		return toInt(x.JQValue())
 	default:
 		return 0, false
 	}
@@ -1632,6 +1800,8 @@ func toFloat(x interface{}) (float64, bool) {
 		return x, true
 	case *big.Int:
 		return bigToFloat(x), true
+	case JQValue:
+		return toFloat(x.JQValue())
 	default:
 		return 0.0, false
 	}
