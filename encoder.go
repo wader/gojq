@@ -37,7 +37,7 @@ type encoder struct {
 	buf [64]byte
 }
 
-func (e *encoder) encode(v interface{}) {
+func (e *encoder) encode(v interface{}) error {
 	switch v := v.(type) {
 	case nil:
 		e.w.WriteString("null")
@@ -56,12 +56,13 @@ func (e *encoder) encode(v interface{}) {
 	case string:
 		e.encodeString(v)
 	case []interface{}:
-		e.encodeArray(v)
+		return e.encodeArray(v)
 	case map[string]interface{}:
-		e.encodeMap(v)
+		return e.encodeMap(v)
 	default:
-		panic(fmt.Sprintf("invalid value: %v", v))
+		return fmt.Errorf("invalid value: %v", v)
 	}
+	return nil
 }
 
 // ref: floatEncoder in encoding/json
@@ -141,18 +142,22 @@ func (e *encoder) encodeString(s string) {
 	e.w.WriteByte('"')
 }
 
-func (e *encoder) encodeArray(vs []interface{}) {
+func (e *encoder) encodeArray(vs []interface{}) error {
 	e.w.WriteByte('[')
 	for i, v := range vs {
 		if i > 0 {
 			e.w.WriteByte(',')
 		}
-		e.encode(v)
+		if err := e.encode(v); err != nil {
+			return err
+		}
 	}
 	e.w.WriteByte(']')
+
+	return nil
 }
 
-func (e *encoder) encodeMap(vs map[string]interface{}) {
+func (e *encoder) encodeMap(vs map[string]interface{}) error {
 	e.w.WriteByte('{')
 	type keyVal struct {
 		key string
@@ -173,7 +178,11 @@ func (e *encoder) encodeMap(vs map[string]interface{}) {
 		}
 		e.encodeString(kv.key)
 		e.w.WriteByte(':')
-		e.encode(kv.val)
+		if err := e.encode(kv.val); err != nil {
+			return err
+		}
 	}
 	e.w.WriteByte('}')
+
+	return nil
 }
