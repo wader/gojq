@@ -308,7 +308,8 @@ func typeof(v interface{}) (s string) {
 	if v == nil {
 		return "null"
 	}
-	k := reflect.TypeOf(v).Kind()
+	t := reflect.TypeOf(v)
+	k := t.Kind()
 	switch k {
 	case reflect.Array, reflect.Slice:
 		return "array"
