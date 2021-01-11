@@ -37,7 +37,7 @@ func prependFuncDef(xs []*FuncDef, x *FuncDef) []*FuncDef {
 %type<value> objectkeyvals objectkeyval objectval
 %type<value> constterm constobject constobjectkeyvals constobjectkeyval constarray constarrayelems
 %type<token> tokIdentVariable tokIdentModuleIdent tokVariableModuleVariable tokKeyword objectkey
-%token<operator> tokAltOp tokUpdateOp tokDestAltOp tokOrOp tokAndOp tokCompareOp
+%token<operator> tokAltOp tokUpdateOp tokDestAltOp tokOrOp tokAndOp tokBorOp tokBandOp tokCompareOp tokBSLOp tokBSROp tokBxorOp tokBnotOp
 %token<token> tokModule tokImport tokInclude tokDef tokAs tokLabel tokBreak
 %token<token> tokNull tokTrue tokFalse
 %token<token> tokIdent tokVariable tokModuleIdent tokModuleVariable
@@ -54,9 +54,15 @@ func prependFuncDef(xs []*FuncDef, x *FuncDef) []*FuncDef {
 %nonassoc tokUpdateOp
 %left tokOrOp
 %left tokAndOp
+%left tokBorOp
+%left tokBandOp
+%left tokBSLOp
+%left tokBSROp
+%left tokBxorOp
 %nonassoc tokCompareOp
 %left '+' '-'
 %left '*' '/' '%'
+%left tokBnotOp
 %nonassoc tokAs tokIndex '.' '?'
 %nonassoc '[' tokTry tokCatch
 
@@ -217,6 +223,26 @@ query
     | query tokAndOp query
     {
         $$ = &Query{Left: $1.(*Query), Op: OpAnd, Right: $3.(*Query)}
+    }
+    | query tokBSLOp query
+    {
+        $$ = &Query{Left: $1.(*Query), Op: OpBSL, Right: $3.(*Query)}
+    }
+    | query tokBSROp query
+    {
+        $$ = &Query{Left: $1.(*Query), Op: OpBSR, Right: $3.(*Query)}
+    }
+    | query tokBorOp query
+    {
+        $$ = &Query{Left: $1.(*Query), Op: OpBor, Right: $3.(*Query)}
+    }
+    | query tokBandOp query
+    {
+        $$ = &Query{Left: $1.(*Query), Op: OpBand, Right: $3.(*Query)}
+    }
+    | query tokBxorOp query
+    {
+        $$ = &Query{Left: $1.(*Query), Op: OpBxor, Right: $3.(*Query)}
     }
     | query tokCompareOp query
     {
@@ -385,6 +411,10 @@ term
     | '-' term
     {
         $$ = &Term{Type: TermTypeUnary, Unary: &Unary{OpSub, $2.(*Term)}}
+    }
+    | tokBnotOp term
+    {
+        $$ = &Term{Type: TermTypeUnary, Unary: &Unary{OpBnot, $2.(*Term)}}
     }
     | '{' '}'
     {
@@ -664,6 +694,12 @@ constarrayelems
 tokKeyword
     : tokOrOp {}
     | tokAndOp {}
+    | tokBSLOp {}
+    | tokBSROp {}
+    | tokBorOp {}
+    | tokBandOp {}
+    | tokBxorOp {}
+    | tokBnotOp {}
     | tokModule {}
     | tokImport {}
     | tokInclude {}
