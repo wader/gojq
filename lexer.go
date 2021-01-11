@@ -25,6 +25,12 @@ const eof = -1
 var keywords = map[string]int{
 	"or":      tokOrOp,
 	"and":     tokAndOp,
+	"bsl":     tokBSLOp,
+	"bsr":     tokBSROp,
+	"bor":     tokBorOp,
+	"band":    tokBandOp,
+	"bxor":    tokBxorOp,
+	"bnot":    tokBnotOp,
 	"module":  tokModule,
 	"import":  tokImport,
 	"include": tokInclude,
