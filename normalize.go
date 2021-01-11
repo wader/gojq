@@ -18,7 +18,7 @@ func normalizeNumbers(v interface{}) interface{} {
 				return f
 			}
 		}
-		if bi, ok := new(big.Int).SetString(v.String(), 10); ok {
+		if bi, ok := new(big.Int).SetString(v.String(), 0); ok {
 			return bi
 		}
 		if strings.HasPrefix(v.String(), "-") {
