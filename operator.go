@@ -27,6 +27,13 @@ const (
 	OpLe
 	OpAnd
 	OpOr
+	OpBSL
+	OpBSR
+	OpBand
+	OpBor
+	OpBxor
+	OpBnot
+	OpIntDiv
 	OpAlt
 	OpAssign
 	OpModify
@@ -71,6 +78,20 @@ func (op Operator) String() string {
 		return "and"
 	case OpOr:
 		return "or"
+	case OpBSL:
+		return "bsl"
+	case OpBSR:
+		return "bsr"
+	case OpBand:
+		return "band"
+	case OpBor:
+		return "bor"
+	case OpBxor:
+		return "bxor"
+	case OpBnot:
+		return "bnot"
+	case OpIntDiv:
+		return "div"
 	case OpAlt:
 		return "//"
 	case OpAssign:
@@ -130,6 +151,20 @@ func (op Operator) GoString() (str string) {
 		return "OpAnd"
 	case OpOr:
 		return "OpOr"
+	case OpBSL:
+		return "OpBSL"
+	case OpBSR:
+		return "OpBSR"
+	case OpBand:
+		return "OpBand"
+	case OpBor:
+		return "OpBor"
+	case OpBxor:
+		return "OpBxor"
+	case OpBnot:
+		return "OpNot"
+	case OpIntDiv:
+		return "OpIntDiv"
 	case OpAlt:
 		return "OpAlt"
 	case OpAssign:
@@ -181,6 +216,20 @@ func (op Operator) getFunc() string {
 		return "_greatereq"
 	case OpLe:
 		return "_lesseq"
+	case OpBSL:
+		return "_bsl"
+	case OpBSR:
+		return "_bsr"
+	case OpBand:
+		return "_band"
+	case OpBor:
+		return "_bor"
+	case OpBxor:
+		return "_bxor"
+	case OpBnot:
+		return "_bnot"
+	case OpIntDiv:
+		return "_intdiv"
 	case OpAnd:
 		panic("unreachable")
 	case OpOr:
@@ -208,8 +257,14 @@ func (op Operator) getFunc() string {
 	}
 }
 
+func binopIsHalfInt(l, r int) bool {
+	return minHalfInt <= l && l <= maxHalfInt &&
+		minHalfInt <= r && r <= maxHalfInt
+}
+
 func binopTypeSwitch(
 	l, r interface{},
+	intSafe func(l, r int) bool,
 	callbackInts func(int, int) interface{},
 	callbackFloats func(float64, float64) interface{},
 	callbackBigInts func(*big.Int, *big.Int) interface{},
@@ -221,8 +276,7 @@ func binopTypeSwitch(
 	case int:
 		switch r := r.(type) {
 		case int:
-			if minHalfInt <= l && l <= maxHalfInt &&
-				minHalfInt <= r && r <= maxHalfInt {
+			if intSafe != nil && intSafe(l, r) {
 				return callbackInts(l, r)
 			}
 			return callbackBigInts(big.NewInt(int64(l)), big.NewInt(int64(r)))
@@ -307,6 +361,17 @@ func funcOpNegate(v interface{}) interface{} {
 	}
 }
 
+func funcOpBnot(v interface{}) interface{} {
+	switch v := v.(type) {
+	case int:
+		return ^v
+	case *big.Int:
+		return new(big.Int).Not(v)
+	default:
+		return &unaryTypeError{"bnot", v}
+	}
+}
+
 func funcOpAdd(_, l, r interface{}) interface{} {
 	if l == nil {
 		return r
@@ -314,6 +379,7 @@ func funcOpAdd(_, l, r interface{}) interface{} {
 		return l
 	}
 	return binopTypeSwitch(l, r,
+		binopIsHalfInt,
 		func(l, r int) interface{} { return l + r },
 		func(l, r float64) interface{} { return l + r },
 		func(l, r *big.Int) interface{} { return new(big.Int).Add(l, r) },
@@ -343,6 +409,7 @@ func funcOpAdd(_, l, r interface{}) interface{} {
 
 func funcOpSub(_, l, r interface{}) interface{} {
 	return binopTypeSwitch(l, r,
+		binopIsHalfInt,
 		func(l, r int) interface{} { return l - r },
 		func(l, r float64) interface{} { return l - r },
 		func(l, r *big.Int) interface{} { return new(big.Int).Sub(l, r) },
@@ -370,6 +437,7 @@ func funcOpSub(_, l, r interface{}) interface{} {
 
 func funcOpMul(_, l, r interface{}) interface{} {
 	return binopTypeSwitch(l, r,
+		binopIsHalfInt,
 		func(l, r int) interface{} { return l * r },
 		func(l, r float64) interface{} { return l * r },
 		func(l, r *big.Int) interface{} { return new(big.Int).Mul(l, r) },
@@ -421,6 +489,7 @@ func deepMergeObjects(l, r map[string]interface{}) interface{} {
 
 func funcOpDiv(_, l, r interface{}) interface{} {
 	return binopTypeSwitch(l, r,
+		nil,
 		func(l, r int) interface{} {
 			if r == 0 {
 				if l == 0 {
@@ -471,6 +540,7 @@ func funcOpDiv(_, l, r interface{}) interface{} {
 
 func funcOpMod(_, l, r interface{}) interface{} {
 	return binopTypeSwitch(l, r,
+		nil,
 		func(l, r int) interface{} {
 			if r == 0 {
 				return &zeroModuloError{l, r}
@@ -494,6 +564,86 @@ func funcOpMod(_, l, r interface{}) interface{} {
 		func(l, r []interface{}) interface{} { return &binopTypeError{"modulo", l, r} },
 		func(l, r map[string]interface{}) interface{} { return &binopTypeError{"modulo", l, r} },
 		func(l, r interface{}) interface{} { return &binopTypeError{"modulo", l, r} },
+	)
+}
+
+// TODO: int*int
+func funcOpBSL(_, l, r interface{}) interface{} {
+	return binopTypeSwitch(l, r,
+		func(l, r int) bool { return false }, // TODO: can be int safe i think
+		func(l, r int) interface{} { return l << r },
+		func(l, r float64) interface{} { return int(l) << int(r) },
+		func(l, r *big.Int) interface{} { return new(big.Int).Lsh(l, uint(r.Uint64())) },
+		func(l, r string) interface{} { return &binopTypeError{"bsl", l, r} },
+		func(l, r []interface{}) interface{} { return &binopTypeError{"bsl", l, r} },
+		func(l, r map[string]interface{}) interface{} { return &binopTypeError{"bsl", l, r} },
+		func(l, r interface{}) interface{} { return &binopTypeError{"bsl", l, r} },
+	)
+}
+
+// TODO: int*int
+func funcOpBSR(_, l, r interface{}) interface{} {
+	return binopTypeSwitch(l, r,
+		nil,
+		func(l, r int) interface{} { return l >> r },
+		func(l, r float64) interface{} { return int(l) >> int(r) },
+		func(l, r *big.Int) interface{} { return new(big.Int).Rsh(l, uint(r.Uint64())) },
+		func(l, r string) interface{} { return &binopTypeError{"bsl", l, r} },
+		func(l, r []interface{}) interface{} { return &binopTypeError{"bsl", l, r} },
+		func(l, r map[string]interface{}) interface{} { return &binopTypeError{"bsl", l, r} },
+		func(l, r interface{}) interface{} { return &binopTypeError{"bsl", l, r} },
+	)
+}
+
+func funcOpBand(_, l, r interface{}) interface{} {
+	return binopTypeSwitch(l, r,
+		nil,
+		func(l, r int) interface{} { return l & r },
+		func(l, r float64) interface{} { return int(l) & int(r) },
+		func(l, r *big.Int) interface{} { return new(big.Int).And(l, r) },
+		func(l, r string) interface{} { return &binopTypeError{"band", l, r} },
+		func(l, r []interface{}) interface{} { return &binopTypeError{"band", l, r} },
+		func(l, r map[string]interface{}) interface{} { return &binopTypeError{"band", l, r} },
+		func(l, r interface{}) interface{} { return &binopTypeError{"band", l, r} },
+	)
+}
+
+func funcOpBor(_, l, r interface{}) interface{} {
+	return binopTypeSwitch(l, r,
+		nil,
+		func(l, r int) interface{} { return l | r },
+		func(l, r float64) interface{} { return int(l) | int(r) },
+		func(l, r *big.Int) interface{} { return new(big.Int).Or(l, r) },
+		func(l, r string) interface{} { return &binopTypeError{"bor", l, r} },
+		func(l, r []interface{}) interface{} { return &binopTypeError{"bor", l, r} },
+		func(l, r map[string]interface{}) interface{} { return &binopTypeError{"bor", l, r} },
+		func(l, r interface{}) interface{} { return &binopTypeError{"bor", l, r} },
+	)
+}
+
+func funcOpBxor(_, l, r interface{}) interface{} {
+	return binopTypeSwitch(l, r,
+		nil,
+		func(l, r int) interface{} { return l ^ r },
+		func(l, r float64) interface{} { return int(l) ^ int(r) },
+		func(l, r *big.Int) interface{} { return new(big.Int).Xor(l, r) },
+		func(l, r string) interface{} { return &binopTypeError{"bxor", l, r} },
+		func(l, r []interface{}) interface{} { return &binopTypeError{"bxor", l, r} },
+		func(l, r map[string]interface{}) interface{} { return &binopTypeError{"bxor", l, r} },
+		func(l, r interface{}) interface{} { return &binopTypeError{"bxor", l, r} },
+	)
+}
+
+func funcOpIntDiv(_, l, r interface{}) interface{} {
+	return binopTypeSwitch(l, r,
+		nil,
+		func(l, r int) interface{} { return l / r },
+		func(l, r float64) interface{} { return int(l) / int(r) },
+		func(l, r *big.Int) interface{} { return new(big.Int).Div(l, r) },
+		func(l, r string) interface{} { return &binopTypeError{"intdiv", l, r} },
+		func(l, r []interface{}) interface{} { return &binopTypeError{"intdiv", l, r} },
+		func(l, r map[string]interface{}) interface{} { return &binopTypeError{"intdiv", l, r} },
+		func(l, r interface{}) interface{} { return &binopTypeError{"intdiv", l, r} },
 	)
 }
 

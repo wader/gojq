@@ -1189,6 +1189,8 @@ func (c *compiler) compileUnary(e *Unary) error {
 		return c.compileCall("_plus", nil)
 	case OpSub:
 		return c.compileCall("_negate", nil)
+	case OpBnot:
+		return c.compileCall("_bnot", nil)
 	default:
 		return fmt.Errorf("unexpected operator in Unary: %s", e.Op)
 	}
