@@ -75,6 +75,21 @@ func (l *lexer) Lex(lval *yySymType) (tokenType int) {
 		}
 		return tokIdent
 	case isNumber(ch):
+		if ch == '0' {
+			base := l.peek()
+			switch base {
+			case 'b', 'o', 'x':
+				i := l.offset - 1
+				l.offset++
+				for isInteger(base, l.peek()) {
+					l.offset++
+				}
+				l.token = string(l.source[i:l.offset])
+				lval.token = l.token
+				return tokNumber
+			}
+		}
+
 		i := l.offset - 1
 		j := l.scanNumber(numberStateLead)
 		if j < 0 {
@@ -376,6 +391,21 @@ func (l *lexer) validNumber() bool {
 		ch = l.peek()
 		state = numberStateFloat
 	}
+
+	switch ch {
+	case '0':
+		l.offset++
+		base := l.peek()
+		switch base {
+		case 'b', 'o', 'x':
+			l.offset++
+			for isInteger(base, l.peek()) {
+				l.offset++
+			}
+			return l.offset == len(l.source)
+		}
+	}
+
 	return isNumber(ch) && l.scanNumber(state) == len(l.source)
 }
 
@@ -559,8 +589,32 @@ func isHex(ch byte) bool {
 		isNumber(ch)
 }
 
+func isBinary(ch byte) bool {
+	return '0' == ch || ch == '1'
+}
+
+func isOctal(ch byte) bool {
+	return '0' <= ch && ch <= '7'
+}
+
 func isNumber(ch byte) bool {
 	return '0' <= ch && ch <= '9'
+}
+
+func isInteger(base byte, ch byte) bool {
+	if ch == '_' {
+		return true
+	}
+	switch base {
+	case 'b':
+		return isBinary(ch)
+	case 'o':
+		return isOctal(ch)
+	case 'x':
+		return isHex(ch)
+	default:
+		panic("unreachable")
+	}
 }
 
 func isNewLine(ch byte) bool {
