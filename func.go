@@ -2244,11 +2244,15 @@ func parseNumber(v json.Number) any {
 			return f
 		}
 	}
-	if bi, ok := new(big.Int).SetString(v.String(), 10); ok {
+	if bi, ok := new(big.Int).SetString(v.String(), 0); ok {
 		return bi
 	}
 	if strings.HasPrefix(v.String(), "-") {
 		return math.Inf(-1)
 	}
 	return math.Inf(1)
+}
+
+func ParseNumber(v json.Number) any {
+	return parseNumber(v)
 }
