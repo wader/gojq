@@ -472,6 +472,8 @@ func (l *lexer) scanString(start int) (int, string) {
 }
 
 type parseError struct {
+	typ       string
+	contents  string
 	offset    int
 	token     string
 	tokenType int
@@ -502,6 +504,10 @@ func (err *parseError) Token() (string, int) {
 	return err.token, err.offset
 }
 
+func (err *parseError) QueryParseError() (string, string, string, error) {
+	return err.typ, "", err.contents, err
+}
+
 func (l *lexer) Error(e string) {
 	offset, token := l.offset, l.token
 	switch {
@@ -512,7 +518,7 @@ func (l *lexer) Error(e string) {
 	default:
 		token = string(rune(l.tokenType))
 	}
-	l.err = &parseError{offset, token, l.tokenType}
+	l.err = &parseError{e, string(l.source), offset, token, l.tokenType}
 }
 
 func isWhite(ch byte) bool {
