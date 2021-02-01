@@ -949,6 +949,13 @@ func (c *compiler) compileFunc(e *Func) error {
 				true,
 				false,
 			)
+		case "scope":
+			return c.compileCallInternal(
+				[3]interface{}{c.funcScope, 0, e.Name},
+				e.Args,
+				true,
+				false,
+			)
 		case "input":
 			if c.inputIter == nil {
 				return &inputNotAllowedError{}
@@ -1027,6 +1034,51 @@ func (c *compiler) funcBuiltins(interface{}, []interface{}) interface{} {
 		ys[i] = x.name + "/" + strconv.Itoa(x.arity)
 	}
 	return ys
+}
+
+func (c *compiler) funcScope(interface{}, []interface{}) interface{} {
+	// function.argcount is a bitfield, conver to slice or counts
+	argCounts := func(argcount int) []int {
+		var cs []int
+		for i := 0; (1<<i)&argcount != 0; i++ {
+			cs = append(cs, i)
+		}
+		return cs
+	}
+	var xs []interface{}
+	for _, fds := range builtinFuncDefs {
+		for _, fd := range fds {
+			xs = append(xs, fmt.Sprintf("%s/%d", fd.Name, len(fd.Args)))
+		}
+	}
+	for name, f := range internalFuncs {
+		for _, i := range argCounts(f.argcount) {
+			xs = append(xs, fmt.Sprintf("%s/%d", name, i))
+		}
+	}
+	for name, f := range c.customFuncs {
+		for _, i := range argCounts(f.argcount) {
+			xs = append(xs, fmt.Sprintf("%s/%d", name, i))
+		}
+	}
+	if c.environLoader != nil {
+		xs = append(xs, "$ENV")
+	}
+	for i := len(c.scopes) - 1; i >= 0; i-- {
+		s := c.scopes[i]
+		for j := len(s.variables) - 1; j >= 0; j-- {
+			v := s.variables[j]
+			xs = append(xs, v.name)
+		}
+		for j := len(s.funcs) - 1; j >= 0; j-- {
+			f := s.funcs[j]
+			xs = append(xs, fmt.Sprintf("%s/%d", f.name, f.argcnt))
+		}
+	}
+	sort.Slice(xs, func(i, j int) bool {
+		return xs[i].(string) < xs[j].(string)
+	})
+	return xs
 }
 
 func (c *compiler) funcInput(interface{}, []interface{}) interface{} {
