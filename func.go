@@ -39,6 +39,16 @@ func (fn function) accept(cnt int) bool {
 	return fn.argcount&(1<<cnt) != 0
 }
 
+func (fn function) arities() []int {
+	var as []int
+	for i, cnt := 0, fn.argcount; cnt > 0; i, cnt = i+1, cnt>>1 {
+		if cnt&1 > 0 {
+			as = append(as, i)
+		}
+	}
+	return as
+}
+
 var internalFuncs map[string]function
 
 func init() {
@@ -47,6 +57,7 @@ func init() {
 		"path":           argFunc1(nil),
 		"env":            argFunc0(nil),
 		"builtins":       argFunc0(nil),
+		"scope":          argFunc0(nil),
 		"input":          argFunc0(nil),
 		"modulemeta":     argFunc0(nil),
 		"length":         argFunc0(funcLength),
