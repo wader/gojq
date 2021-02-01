@@ -898,6 +898,13 @@ func (c *compiler) compileFunc(e *Func) error {
 				nil,
 				false,
 			)
+		case "scope":
+			return c.compileCallInternal(
+				[3]interface{}{c.funcScope, 0, e.Name},
+				e.Args,
+				nil,
+				false,
+			)
 		case "input":
 			if c.inputIter == nil {
 				return &inputNotAllowedError{}
@@ -970,6 +977,37 @@ func (c *compiler) funcBuiltins(interface{}, []interface{}) interface{} {
 		ys[i] = x.name + "/" + strconv.Itoa(x.arity)
 	}
 	return ys
+}
+
+func (c *compiler) funcScope(interface{}, []interface{}) interface{} {
+	var xs []interface{}
+	for _, fds := range builtinFuncDefs {
+		xs = append(xs, fds[0].Name)
+	}
+	for name := range internalFuncs {
+		if name[0] != '_' {
+			xs = append(xs, name)
+		}
+	}
+	for name := range c.customFuncs {
+		if name[0] != '_' {
+			xs = append(xs, name)
+		}
+	}
+	for _, f := range c.funcs {
+		xs = append(xs, f.name)
+	}
+	for i := len(c.scopes) - 1; i >= 0; i-- {
+		s := c.scopes[i]
+		for j := len(s.variables) - 1; j >= 0; j-- {
+			v := s.variables[j]
+			xs = append(xs, v.name)
+		}
+	}
+	sort.Slice(xs, func(i, j int) bool {
+		return xs[i].(string) < xs[j].(string)
+	})
+	return xs
 }
 
 func (c *compiler) funcInput(interface{}, []interface{}) interface{} {
