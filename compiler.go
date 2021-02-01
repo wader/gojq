@@ -973,6 +973,13 @@ func (c *compiler) compileFunc(e *Func) error {
 				true,
 				-1,
 			)
+		case "scope":
+			return c.compileCallInternal(
+				[3]any{c.funcScope, 0, e.Name},
+				e.Args,
+				true,
+				-1,
+			)
 		case "input":
 			if c.inputIter == nil {
 				return &inputNotAllowedError{}
@@ -1159,6 +1166,43 @@ func (c *compiler) funcBuiltins(any, []any) any {
 		ys[i] = x.name + "/" + strconv.Itoa(x.arity)
 	}
 	return ys
+}
+
+func (c *compiler) funcScope(any, []any) any {
+	var xs []any
+	for _, fds := range builtinFuncDefs {
+		for _, fd := range fds {
+			xs = append(xs, fmt.Sprintf("%s/%d", fd.Name, len(fd.Args)))
+		}
+	}
+	for name, f := range internalFuncs {
+		for _, a := range f.arities() {
+			xs = append(xs, fmt.Sprintf("%s/%d", name, a))
+		}
+	}
+	for name, f := range c.customFuncs {
+		for _, a := range f.arities() {
+			xs = append(xs, fmt.Sprintf("%s/%d", name, a))
+		}
+	}
+	if c.environLoader != nil {
+		xs = append(xs, "$ENV")
+	}
+	for i := len(c.scopes) - 1; i >= 0; i-- {
+		s := c.scopes[i]
+		for j := len(s.variables) - 1; j >= 0; j-- {
+			v := s.variables[j]
+			xs = append(xs, v.name)
+		}
+		for j := len(s.funcs) - 1; j >= 0; j-- {
+			f := s.funcs[j]
+			xs = append(xs, fmt.Sprintf("%s/%d", f.name, f.argcnt))
+		}
+	}
+	sort.Slice(xs, func(i, j int) bool {
+		return xs[i].(string) < xs[j].(string)
+	})
+	return xs
 }
 
 func (c *compiler) funcInput(any, []any) any {
