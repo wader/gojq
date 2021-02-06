@@ -915,6 +915,20 @@ func (c *compiler) compileFunc(e *Func) error {
 				nil,
 				false,
 			)
+		case "scopedump":
+			c.append(&code{op: oppop})
+			n := 0
+			for i := len(c.scopes) - 1; i >= 0; i-- {
+				s := c.scopes[i]
+				for j := len(s.variables) - 1; j >= 0; j-- {
+					v := s.variables[j]
+					c.append(&code{op: oppush, v: v.name})
+					c.append(&code{op: opload, v: v.index})
+					n++
+				}
+			}
+			c.append(&code{op: opobject, v: n})
+			return nil
 		default:
 			return c.compileCall(e.Name, e.Args)
 		}

@@ -46,6 +46,7 @@ func init() {
 		"env":            argFunc0(nil),
 		"builtins":       argFunc0(nil),
 		"scope":          argFunc0(nil),
+		"scopedump":      argFunc0(nil),
 		"input":          argFunc0(nil),
 		"modulemeta":     argFunc0(nil),
 		"length":         argFuncV0(funcLength),
