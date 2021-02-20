@@ -149,37 +149,90 @@ loop:
 				goto loop
 			}
 		case opcall:
-			if backtrack {
-				break loop
-			}
-			switch v := code.v.(type) {
-			case int:
+			if v, ok := code.v.(int); ok {
 				pc, callpc, index = v, pc, env.scopes.index
 				goto loop
-			case [3]interface{}:
-				argcnt := v[1].(int)
-				x, args := env.pop(), env.args[:argcnt]
-				for i := 0; i < argcnt; i++ {
-					args[i] = env.pop()
+			}
+
+			x := env.pop()
+			if xi, ok := x.(Iter); ok {
+
+				v, ok := xi.Next()
+				if !ok {
+					break loop
 				}
-				w := v[0].(func(interface{}, []interface{}) interface{})(x, args)
-				if e, ok := w.(error); ok {
+				if e, ok := v.(error); ok {
 					err = e
 					break loop
 				}
-				env.push(w)
-				if !env.paths.empty() {
-					var ps []interface{}
-					ps, err = env.pathEntries(v[2].(string), x, args)
-					if err != nil {
+
+				backtrack = false
+
+				env.push(xi)
+				env.pushfork(code.op, pc)
+				env.pop()
+				env.push(v)
+				// if !env.paths.empty() {
+				// 	if env.expdepth == 0 {
+				// 		env.paths.push(xs[0])
+				// 	}
+				// }
+			} else {
+				if backtrack {
+					break loop
+				}
+				switch v := code.v.(type) {
+				case [3]interface{}:
+
+					argcnt := v[1].(int)
+					args := env.args[:argcnt]
+					for i := 0; i < argcnt; i++ {
+						args[i] = env.pop()
+					}
+					w := v[0].(func(interface{}, []interface{}) interface{})(x, args)
+					if e, ok := w.(error); ok {
+						err = e
 						break loop
 					}
-					for _, p := range ps {
-						env.paths.push([2]interface{}{p, w})
+
+					if wi, ok := w.(Iter); ok {
+						v, ok := wi.Next()
+						if !ok {
+							break loop
+						}
+						if e, ok := v.(error); ok {
+							err = e
+							break loop
+						}
+						env.push(wi)
+						env.pushfork(code.op, pc)
+						env.pop()
+						env.push(v)
+
+						// backtrack = false
+
+						// if !env.paths.empty() {
+						// 	if env.expdepth == 0 {
+						// 		env.paths.push(xs[0])
+						// 	}
+						// }
+
+					} else {
+						env.push(w)
+						if !env.paths.empty() {
+							var ps []interface{}
+							ps, err = env.pathEntries(v[2].(string), x, args)
+							if err != nil {
+								break loop
+							}
+							for _, p := range ps {
+								env.paths.push([2]interface{}{p, w})
+							}
+						}
 					}
+				default:
+					panic(v)
 				}
-			default:
-				panic(v)
 			}
 		case oppushpc:
 			env.push([2]int{code.v.(int), env.scopes.index})
