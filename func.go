@@ -57,7 +57,7 @@ func init() {
 		"add":            argFunc0(funcAdd),
 		"tonumber":       argFunc0(funcToNumber),
 		"tostring":       argFunc0(funcToString),
-		"type":           argFunc0(funcType),
+		"type":           argFunc0S(funcType),
 		"reverse":        argFunc0S(funcReverse),
 		"contains":       argFunc1(funcContains),
 		"explode":        argFunc0(funcExplode),
@@ -79,24 +79,24 @@ func init() {
 		"_plus":          argFunc0(funcOpPlus),
 		"_negate":        argFunc0(funcOpNegate),
 		"_bnot":          argFunc0(funcOpBnot),
-		"_add":           argFunc2(funcOpAdd),
-		"_subtract":      argFunc2(funcOpSub),
-		"_multiply":      argFunc2(funcOpMul),
-		"_divide":        argFunc2(funcOpDiv),
-		"_modulo":        argFunc2(funcOpMod),
-		"_bsl":           argFunc2(funcOpBSL),
-		"_bsr":           argFunc2(funcOpBSR),
-		"_band":          argFunc2(funcOpBand),
-		"_bor":           argFunc2(funcOpBor),
-		"_bxor":          argFunc2(funcOpBxor),
-		"_intdiv":        argFunc2(funcOpIntDiv),
-		"_alternative":   argFunc2(funcOpAlt),
-		"_equal":         argFunc2(funcOpEq),
-		"_notequal":      argFunc2(funcOpNe),
-		"_greater":       argFunc2(funcOpGt),
-		"_less":          argFunc2(funcOpLt),
-		"_greatereq":     argFunc2(funcOpGe),
-		"_lesseq":        argFunc2(funcOpLe),
+		"_add":           argOp2(funcOpAdd),
+		"_subtract":      argOp2(funcOpSub),
+		"_multiply":      argOp2(funcOpMul),
+		"_divide":        argOp2(funcOpDiv),
+		"_modulo":        argOp2(funcOpMod),
+		"_bsl":           argOp2(funcOpBSL),
+		"_bsr":           argOp2(funcOpBSR),
+		"_band":          argOp2(funcOpBand),
+		"_bor":           argOp2(funcOpBor),
+		"_bxor":          argOp2(funcOpBxor),
+		"_intdiv":        argOp2(funcOpIntDiv),
+		"_alternative":   argOp2(funcOpAlt),
+		"_equal":         argOp2(funcOpEq),
+		"_notequal":      argOp2(funcOpNe),
+		"_greater":       argOp2(funcOpGt),
+		"_less":          argOp2(funcOpLt),
+		"_greatereq":     argOp2(funcOpGe),
+		"_lesseq":        argOp2(funcOpLe),
 		"_min_by":        argFunc1(funcMinBy),
 		"_max_by":        argFunc1(funcMaxBy),
 		"_sort_by":       argFunc1(funcSortBy),
@@ -193,6 +193,14 @@ func toPrimitive(v interface{}) interface{} {
 		return jo.JsonPrimitiveValue()
 	}
 	return v
+}
+
+func argOp2(fn func(interface{}, interface{}, interface{}) interface{}) function {
+	return function{
+		argcount2, func(v interface{}, args []interface{}) interface{} {
+			return fn(nil, toPrimitive(args[0]), toPrimitive(args[1]))
+		},
+	}
 }
 
 func argFunc0(fn func(interface{}) interface{}) function {
