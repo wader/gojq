@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/itchyny/gojq"
+	"github.com/wader/gojq"
 )
 
 func main() {
