@@ -101,7 +101,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/itchyny/gojq"
+	"github.com/wader/gojq"
 )
 
 func main() {
