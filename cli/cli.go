@@ -13,7 +13,7 @@ import (
 	"github.com/itchyny/go-flags"
 	"github.com/mattn/go-isatty"
 
-	"github.com/itchyny/gojq"
+	"github.com/wader/gojq"
 )
 
 const name = "gojq"

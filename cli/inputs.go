@@ -11,7 +11,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/itchyny/gojq"
+	"github.com/wader/gojq"
 )
 
 type inputReader struct {
