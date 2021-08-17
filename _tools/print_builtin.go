@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/itchyny/gojq"
+	"github.com/wader/gojq"
 )
 
 func main() {
