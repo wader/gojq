@@ -12,7 +12,7 @@ import (
 	"github.com/itchyny/go-yaml"
 	"github.com/mattn/go-runewidth"
 
-	"github.com/itchyny/gojq"
+	"github.com/wader/gojq"
 )
 
 type emptyError struct {
