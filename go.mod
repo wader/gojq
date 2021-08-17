@@ -1,4 +1,6 @@
-module github.com/itchyny/gojq
+// fork of ithub.com/itchyny/gojq
+// renames module to make it easier to depend on without using replace
+module github.com/wader/gojq
 
 go 1.18
 

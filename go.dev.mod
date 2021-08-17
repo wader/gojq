@@ -1,4 +1,4 @@
-module github.com/itchyny/gojq
+module github.com/wader/gojq
 
 go 1.18
 
