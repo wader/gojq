@@ -1,5 +1,10 @@
 package gojq
 
+import (
+	"encoding/json"
+	"fmt"
+)
+
 // TermType represents the type of [Term].
 type TermType int
 
@@ -26,6 +31,54 @@ const (
 	TermTypeBreak
 	TermTypeQuery
 )
+
+// GoString implements [fmt.GoStringer].
+func TermTypeFromString(s string) TermType {
+	switch s {
+	case "TermTypeIdentity":
+		return TermTypeIdentity
+	case "TermTypeRecurse":
+		return TermTypeRecurse
+	case "TermTypeNull":
+		return TermTypeNull
+	case "TermTypeTrue":
+		return TermTypeTrue
+	case "TermTypeFalse":
+		return TermTypeFalse
+	case "TermTypeIndex":
+		return TermTypeIndex
+	case "TermTypeFunc":
+		return TermTypeFunc
+	case "TermTypeObject":
+		return TermTypeObject
+	case "TermTypeArray":
+		return TermTypeArray
+	case "TermTypeNumber":
+		return TermTypeNumber
+	case "TermTypeUnary":
+		return TermTypeUnary
+	case "TermTypeFormat":
+		return TermTypeFormat
+	case "TermTypeString":
+		return TermTypeString
+	case "TermTypeIf":
+		return TermTypeIf
+	case "TermTypeTry":
+		return TermTypeTry
+	case "TermTypeReduce":
+		return TermTypeReduce
+	case "TermTypeForeach":
+		return TermTypeForeach
+	case "TermTypeLabel":
+		return TermTypeLabel
+	case "TermTypeBreak":
+		return TermTypeBreak
+	case "TermTypeQuery":
+		return TermTypeQuery
+	default:
+		return 0
+	}
+}
 
 // GoString implements [fmt.GoStringer].
 func (termType TermType) GoString() (str string) {
@@ -74,4 +127,25 @@ func (termType TermType) GoString() (str string) {
 	default:
 		panic(termType)
 	}
+}
+
+func (termType TermType) MarshalJSON() ([]byte, error) {
+	if termType == 0 {
+		return json.Marshal(nil)
+	}
+	// TODO: gojq. skips prefix
+	return json.Marshal(termType.GoString()[5:])
+}
+
+func (termType *TermType) UnmarshalJSON(text []byte) error {
+	var s string
+	err := json.Unmarshal(text, &s)
+	if err != nil {
+		return err
+	}
+	*termType = TermTypeFromString(s)
+	if *termType == 0 {
+		return fmt.Errorf("unknown term %v", s)
+	}
+	return nil
 }
