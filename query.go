@@ -21,14 +21,14 @@ func Parse(src string) (*Query, error) {
 
 // Query represents the abstract syntax tree of a jq query.
 type Query struct {
-	Meta     *ConstObject
-	Imports  []*Import
-	FuncDefs []*FuncDef
-	Term     *Term
-	Left     *Query
-	Right    *Query
-	Patterns []*Pattern
-	Op       Operator
+	Meta     *ConstObject `json:"meta,omitempty"`
+	Imports  []*Import    `json:"imports,omitempty"`
+	FuncDefs []*FuncDef   `json:"func_defs,omitempty"`
+	Term     *Term        `json:"term,omitempty"`
+	Left     *Query       `json:"left,omitempty"`
+	Right    *Query       `json:"right,omitempty"`
+	Patterns []*Pattern   `json:"patterns,omitempty"`
+	Op       Operator     `json:"op,omitempty"`
 }
 
 // Run the query.
@@ -104,10 +104,10 @@ func (e *Query) toIndices(xs []any) []any {
 
 // Import ...
 type Import struct {
-	ImportPath  string
-	ImportAlias string
-	IncludePath string
-	Meta        *ConstObject
+	ImportPath  string       `json:"import_path,omitempty"`
+	ImportAlias string       `json:"import_alias,omitempty"`
+	IncludePath string       `json:"include_path,omitempty"`
+	Meta        *ConstObject `json:"meta,omitempty"`
 }
 
 func (e *Import) String() string {
@@ -135,9 +135,9 @@ func (e *Import) writeTo(s *strings.Builder) {
 
 // FuncDef ...
 type FuncDef struct {
-	Name string
-	Args []string
-	Body *Query
+	Name string   `json:"name,omitempty"`
+	Args []string `json:"args,omitempty"`
+	Body *Query   `json:"body,omitempty"`
 }
 
 func (e *FuncDef) String() string {
@@ -166,23 +166,23 @@ func (e *FuncDef) writeTo(s *strings.Builder) {
 
 // Term ...
 type Term struct {
-	Type       TermType
-	Index      *Index
-	Func       *Func
-	Object     *Object
-	Array      *Array
-	Number     string
-	Unary      *Unary
-	Format     string
-	Str        *String
-	If         *If
-	Try        *Try
-	Reduce     *Reduce
-	Foreach    *Foreach
-	Label      *Label
-	Break      string
-	Query      *Query
-	SuffixList []*Suffix
+	Type       TermType  `json:"type,omitempty"`
+	Index      *Index    `json:"index,omitempty"`
+	Func       *Func     `json:"func,omitempty"`
+	Object     *Object   `json:"object,omitempty"`
+	Array      *Array    `json:"array,omitempty"`
+	Number     string    `json:"number,omitempty"`
+	Unary      *Unary    `json:"unary,omitempty"`
+	Format     string    `json:"format,omitempty"`
+	Str        *String   `json:"str,omitempty"`
+	If         *If       `json:"if,omitempty"`
+	Try        *Try      `json:"try,omitempty"`
+	Reduce     *Reduce   `json:"reduce,omitempty"`
+	Foreach    *Foreach  `json:"foreach,omitempty"`
+	Label      *Label    `json:"label,omitempty"`
+	Break      string    `json:"break,omitempty"`
+	Query      *Query    `json:"query,omitempty"`
+	SuffixList []*Suffix `json:"suffix_list,omitempty"`
 }
 
 func (e *Term) String() string {
@@ -292,8 +292,8 @@ func (e *Term) toNumber() any {
 
 // Unary ...
 type Unary struct {
-	Op   Operator
-	Term *Term
+	Op   Operator `json:"op,omitempty"`
+	Term *Term    `json:"term,omitempty"`
 }
 
 func (e *Unary) String() string {
@@ -317,9 +317,9 @@ func (e *Unary) toNumber() any {
 
 // Pattern ...
 type Pattern struct {
-	Name   string
-	Array  []*Pattern
-	Object []*PatternObject
+	Name   string           `json:"name,omitempty"`
+	Array  []*Pattern       `json:"array,omitempty"`
+	Object []*PatternObject `json:"object,omitempty"`
 }
 
 func (e *Pattern) String() string {
@@ -354,10 +354,10 @@ func (e *Pattern) writeTo(s *strings.Builder) {
 
 // PatternObject ...
 type PatternObject struct {
-	Key       string
-	KeyString *String
-	KeyQuery  *Query
-	Val       *Pattern
+	Key       string   `json:"key,omitempty"`
+	KeyString *String  `json:"key_string,omitempty"`
+	KeyQuery  *Query   `json:"key_query,omitempty"`
+	Val       *Pattern `json:"val,omitempty"`
 }
 
 func (e *PatternObject) String() string {
@@ -384,11 +384,11 @@ func (e *PatternObject) writeTo(s *strings.Builder) {
 
 // Index ...
 type Index struct {
-	Name    string
-	Str     *String
-	Start   *Query
-	End     *Query
-	IsSlice bool
+	Name    string  `json:"name,omitempty"`
+	Str     *String `json:"str,omitempty"`
+	Start   *Query  `json:"start,omitempty"`
+	End     *Query  `json:"end,omitempty"`
+	IsSlice bool    `json:"is_slice,omitempty"`
 }
 
 func (e *Index) String() string {
@@ -466,8 +466,8 @@ func (e *Index) toIndices(xs []any) []any {
 
 // Func ...
 type Func struct {
-	Name string
-	Args []*Query
+	Name string   `json:"name,omitempty"`
+	Args []*Query `json:"args,omitempty"`
 }
 
 func (e *Func) String() string {
@@ -492,8 +492,8 @@ func (e *Func) writeTo(s *strings.Builder) {
 
 // String ...
 type String struct {
-	Str     string
-	Queries []*Query
+	Str     string   `json:"str,omitempty"`
+	Queries []*Query `json:"queries,omitempty"`
 }
 
 func (e *String) String() string {
@@ -522,7 +522,7 @@ func (e *String) writeTo(s *strings.Builder) {
 
 // Object ...
 type Object struct {
-	KeyVals []*ObjectKeyVal
+	KeyVals []*ObjectKeyVal `json:"key_vals,omitempty"`
 }
 
 func (e *Object) String() string {
@@ -548,10 +548,10 @@ func (e *Object) writeTo(s *strings.Builder) {
 
 // ObjectKeyVal ...
 type ObjectKeyVal struct {
-	Key       string
-	KeyString *String
-	KeyQuery  *Query
-	Val       *Query
+	Key       string  `json:"key,omitempty"`
+	KeyString *String `json:"key_string,omitempty"`
+	KeyQuery  *Query  `json:"key_query,omitempty"`
+	Val       *Query  `json:"val,omitempty"`
 }
 
 func (e *ObjectKeyVal) String() string {
@@ -578,7 +578,7 @@ func (e *ObjectKeyVal) writeTo(s *strings.Builder) {
 
 // Array ...
 type Array struct {
-	Query *Query
+	Query *Query `json:"query,omitempty"`
 }
 
 func (e *Array) String() string {
@@ -597,9 +597,9 @@ func (e *Array) writeTo(s *strings.Builder) {
 
 // Suffix ...
 type Suffix struct {
-	Index    *Index
-	Iter     bool
-	Optional bool
+	Index    *Index `json:"index,omitempty"`
+	Iter     bool   `json:"iter,omitempty"`
+	Optional bool   `json:"optional,omitempty"`
 }
 
 func (e *Suffix) String() string {
@@ -641,10 +641,10 @@ func (e *Suffix) toIndices(xs []any) []any {
 
 // If ...
 type If struct {
-	Cond *Query
-	Then *Query
-	Elif []*IfElif
-	Else *Query
+	Cond *Query    `json:"cond,omitempty"`
+	Then *Query    `json:"then,omitempty"`
+	Elif []*IfElif `json:"elif,omitempty"`
+	Else *Query    `json:"else,omitempty"`
 }
 
 func (e *If) String() string {
@@ -671,8 +671,8 @@ func (e *If) writeTo(s *strings.Builder) {
 
 // IfElif ...
 type IfElif struct {
-	Cond *Query
-	Then *Query
+	Cond *Query `json:"cond,omitempty"`
+	Then *Query `json:"then,omitempty"`
 }
 
 func (e *IfElif) String() string {
@@ -690,8 +690,8 @@ func (e *IfElif) writeTo(s *strings.Builder) {
 
 // Try ...
 type Try struct {
-	Body  *Query
-	Catch *Query
+	Body  *Query `json:"body,omitempty"`
+	Catch *Query `json:"catch,omitempty"`
 }
 
 func (e *Try) String() string {
@@ -711,10 +711,10 @@ func (e *Try) writeTo(s *strings.Builder) {
 
 // Reduce ...
 type Reduce struct {
-	Query   *Query
-	Pattern *Pattern
-	Start   *Query
-	Update  *Query
+	Query   *Query   `json:"query,omitempty"`
+	Pattern *Pattern `json:"pattern,omitempty"`
+	Start   *Query   `json:"start,omitempty"`
+	Update  *Query   `json:"update,omitempty"`
 }
 
 func (e *Reduce) String() string {
@@ -737,11 +737,11 @@ func (e *Reduce) writeTo(s *strings.Builder) {
 
 // Foreach ...
 type Foreach struct {
-	Query   *Query
-	Pattern *Pattern
-	Start   *Query
-	Update  *Query
-	Extract *Query
+	Query   *Query   `json:"query,omitempty"`
+	Pattern *Pattern `json:"pattern,omitempty"`
+	Start   *Query   `json:"start,omitempty"`
+	Update  *Query   `json:"update,omitempty"`
+	Extract *Query   `json:"extract,omitempty"`
 }
 
 func (e *Foreach) String() string {
@@ -768,8 +768,8 @@ func (e *Foreach) writeTo(s *strings.Builder) {
 
 // Label ...
 type Label struct {
-	Ident string
-	Body  *Query
+	Ident string `json:"ident,omitempty"`
+	Body  *Query `json:"body,omitempty"`
 }
 
 func (e *Label) String() string {
@@ -787,13 +787,13 @@ func (e *Label) writeTo(s *strings.Builder) {
 
 // ConstTerm ...
 type ConstTerm struct {
-	Object *ConstObject
-	Array  *ConstArray
-	Number string
-	Str    string
-	Null   bool
-	True   bool
-	False  bool
+	Object *ConstObject `json:"object,omitempty"`
+	Array  *ConstArray  `json:"array,omitempty"`
+	Number string       `json:"number,omitempty"`
+	Str    string       `json:"str,omitempty"`
+	Null   bool         `json:"null,omitempty"`
+	True   bool         `json:"true,omitempty"`
+	False  bool         `json:"false,omitempty"`
 }
 
 func (e *ConstTerm) String() string {
@@ -848,7 +848,7 @@ func (e *ConstTerm) toString() (string, bool) {
 
 // ConstObject ...
 type ConstObject struct {
-	KeyVals []*ConstObjectKeyVal
+	KeyVals []*ConstObjectKeyVal `json:"keyvals,omitempty"`
 }
 
 func (e *ConstObject) String() string {
@@ -890,9 +890,9 @@ func (e *ConstObject) ToValue() map[string]any {
 
 // ConstObjectKeyVal ...
 type ConstObjectKeyVal struct {
-	Key       string
-	KeyString string
-	Val       *ConstTerm
+	Key       string     `json:"key,omitempty"`
+	KeyString string     `json:"key_string,omitempty"`
+	Val       *ConstTerm `json:"val,omitempty"`
 }
 
 func (e *ConstObjectKeyVal) String() string {
@@ -913,7 +913,7 @@ func (e *ConstObjectKeyVal) writeTo(s *strings.Builder) {
 
 // ConstArray ...
 type ConstArray struct {
-	Elems []*ConstTerm
+	Elems []*ConstTerm `json:"elems,omitempty"`
 }
 
 func (e *ConstArray) String() string {
