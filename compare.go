@@ -6,7 +6,8 @@ import (
 )
 
 func compare(l, r interface{}) int {
-	return binopTypeSwitch(l, r,
+	return BinopTypeSwitch(l, r,
+		nil,
 		func(l, r int) interface{} {
 			switch {
 			case l < r:

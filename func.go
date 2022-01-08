@@ -531,7 +531,8 @@ func funcContains(v, x interface{}) interface{} {
 			}
 		}
 	}
-	return binopTypeSwitch(v, x,
+	return BinopTypeSwitch(v, x,
+		nil,
 		func(l, r int) interface{} { return l == r },
 		func(l, r float64) interface{} { return l == r },
 		func(l, r *big.Int) interface{} { return l.Cmp(r) == 0 },
