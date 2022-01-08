@@ -285,8 +285,14 @@ func (op *Operator) UnmarshalJSON(text []byte) error {
 	return nil
 }
 
-func binopTypeSwitch(
+func binopIsHalfInt(l, r int) bool {
+	return minHalfInt <= l && l <= maxHalfInt &&
+		minHalfInt <= r && r <= maxHalfInt
+}
+
+func BinopTypeSwitch(
 	l, r interface{},
+	intSafe func(l, r int) bool,
 	callbackInts func(_, _ int) interface{},
 	callbackFloats func(_, _ float64) interface{},
 	callbackBigInts func(_, _ *big.Int) interface{},
@@ -306,8 +312,7 @@ func binopTypeSwitch(
 	case int:
 		switch r := r.(type) {
 		case int:
-			if minHalfInt <= l && l <= maxHalfInt &&
-				minHalfInt <= r && r <= maxHalfInt {
+			if intSafe != nil && intSafe(l, r) {
 				return callbackInts(l, r)
 			}
 			return callbackBigInts(big.NewInt(int64(l)), big.NewInt(int64(r)))
@@ -402,7 +407,8 @@ func funcOpAdd(_, l, r interface{}) interface{} {
 	} else if isNull(r) {
 		return l
 	}
-	return binopTypeSwitch(l, r,
+	return BinopTypeSwitch(l, r,
+		binopIsHalfInt,
 		func(l, r int) interface{} { return l + r },
 		func(l, r float64) interface{} { return l + r },
 		func(l, r *big.Int) interface{} { return new(big.Int).Add(l, r) },
@@ -431,7 +437,8 @@ func funcOpAdd(_, l, r interface{}) interface{} {
 }
 
 func funcOpSub(_, l, r interface{}) interface{} {
-	return binopTypeSwitch(l, r,
+	return BinopTypeSwitch(l, r,
+		binopIsHalfInt,
 		func(l, r int) interface{} { return l - r },
 		func(l, r float64) interface{} { return l - r },
 		func(l, r *big.Int) interface{} { return new(big.Int).Sub(l, r) },
@@ -458,7 +465,8 @@ func funcOpSub(_, l, r interface{}) interface{} {
 }
 
 func funcOpMul(_, l, r interface{}) interface{} {
-	return binopTypeSwitch(l, r,
+	return BinopTypeSwitch(l, r,
+		binopIsHalfInt,
 		func(l, r int) interface{} { return l * r },
 		func(l, r float64) interface{} { return l * r },
 		func(l, r *big.Int) interface{} { return new(big.Int).Mul(l, r) },
@@ -509,7 +517,8 @@ func deepMergeObjects(l, r map[string]interface{}) interface{} {
 }
 
 func funcOpDiv(_, l, r interface{}) interface{} {
-	return binopTypeSwitch(l, r,
+	return BinopTypeSwitch(l, r,
+		binopIsHalfInt,
 		func(l, r int) interface{} {
 			if r == 0 {
 				if l == 0 {
@@ -562,7 +571,8 @@ func funcOpDiv(_, l, r interface{}) interface{} {
 }
 
 func funcOpMod(_, l, r interface{}) interface{} {
-	return binopTypeSwitch(l, r,
+	return BinopTypeSwitch(l, r,
+		binopIsHalfInt,
 		func(l, r int) interface{} {
 			if r == 0 {
 				return &zeroModuloError{l, r}
