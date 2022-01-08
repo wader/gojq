@@ -6,7 +6,8 @@ import (
 )
 
 func deepEqual(l, r interface{}) bool {
-	return binopTypeSwitch(l, r,
+	return BinopTypeSwitch(l, r,
+		binopIsHalfInt,
 		func(l, r int) interface{} {
 			return l == r
 		},
