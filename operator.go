@@ -285,6 +285,29 @@ func (op *Operator) UnmarshalJSON(text []byte) error {
 	return nil
 }
 
+// BinopTypeSwitch helper for external binops
+// re-exported instead of renamed to make it easier to follow upstream
+func BinopTypeSwitch(
+	l, r interface{},
+	callbackInts func(_, _ int) interface{},
+	callbackFloats func(_, _ float64) interface{},
+	callbackBigInts func(_, _ *big.Int) interface{},
+	callbackStrings func(_, _ string) interface{},
+	callbackArrays func(_, _ []interface{}) interface{},
+	callbackMaps func(_, _ map[string]interface{}) interface{},
+	fallback func(_, _ interface{}) interface{}) interface{} {
+	return binopTypeSwitch(
+		l, r,
+		callbackInts,
+		callbackFloats,
+		callbackBigInts,
+		callbackStrings,
+		callbackArrays,
+		callbackMaps,
+		fallback,
+	)
+}
+
 func binopTypeSwitch(
 	l, r interface{},
 	callbackInts func(_, _ int) interface{},
