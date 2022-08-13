@@ -247,6 +247,10 @@ func (l *lexer) Lex(lval *yySymType) (tokenType int) {
 		tok, str := l.scanString(l.offset - 1)
 		lval.token = str
 		return tok
+	case '`':
+		tok, str := l.scanRawString(l.offset - 1)
+		lval.token = str
+		return tok
 	default:
 		if ch >= utf8.RuneSelf {
 			r, size := utf8.DecodeRuneInString(l.source[l.offset-1:])
@@ -501,6 +505,21 @@ func (l *lexer) scanString(start int) (int, string) {
 			if ch < ' ' { // ref: unquoteBytes in encoding/json
 				controls++
 			}
+		}
+	}
+	l.offset = len(l.source)
+	l.token = ""
+	return tokUnterminatedString, ""
+}
+
+func (l *lexer) scanRawString(start int) (int, string) {
+	for i := l.offset; i < len(l.source); i++ {
+		ch := l.source[i]
+		switch ch {
+		case '`':
+			l.offset = i + 1
+			l.token = l.source[start:l.offset]
+			return tokString, l.token[1 : len(l.token)-1]
 		}
 	}
 	l.offset = len(l.source)
